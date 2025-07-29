@@ -5,13 +5,12 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.Data;
 import org.springframework.stereotype.Service;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
  * @author: 谢玮杰
- * @description: 动态数据源
+ * @description: 动态数据源连接
  * @create: 2025-07-26 22:59
  **/
 @Data
@@ -20,7 +19,7 @@ public class DynamicDataSourceService {
     /**
      * 接收前端的参数，返回一个可用的 DataSource
      */
-    
+
     public HikariDataSource createDataSource(MysqlConnectionEntity mysqlConnectionEntity) {
         HikariConfig hc = new HikariConfig();
         hc.setJdbcUrl(
@@ -41,7 +40,6 @@ public class DynamicDataSourceService {
      */
     public Connection getConnection(MysqlConnectionEntity mysqlConnectionEntity) throws SQLException {
         HikariDataSource ds = createDataSource(mysqlConnectionEntity);
-        // 如果你只想取一次连接用完就关掉，可以这样：
         return ds.getConnection();
     }
 }

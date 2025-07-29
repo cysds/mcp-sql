@@ -1,12 +1,10 @@
 package com.cysds.config;
 
-import com.cysds.entity.MysqlConnectionEntity;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.annotation.Resource;
 
 /**
  * @author: 谢玮杰
