@@ -27,7 +27,7 @@ public class DynamicDataSourceService {
                         mysqlConnectionEntity.getHost() + ":" +
                         mysqlConnectionEntity.getPort() + "/" +
                         mysqlConnectionEntity.getDatabase() +
-                        "?useSSL=false&serverTimezone=UTC"
+                        "?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Shanghai"
         );
         hc.setUsername(mysqlConnectionEntity.getUsername());
         hc.setPassword(mysqlConnectionEntity.getPassword());

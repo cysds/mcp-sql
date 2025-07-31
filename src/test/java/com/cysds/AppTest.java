@@ -31,6 +31,10 @@ public class AppTest {
 
         connectionRepository.buildConnection(mysqlConnectionEntity);
 
+        String str = connectionRepository.getSql("查询商品表里的所有数据");
+
+        log.info("SQL:{}", str);
+
         List<Map<String, Object>> maps = connectionRepository.queryAllUsers();
 
         for (Map<String, Object> map : maps) {

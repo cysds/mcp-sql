@@ -1,6 +1,7 @@
 package com.cysds;
 
 import com.alibaba.fastjson2.JSON;
+import com.cysds.service.repository.ConnectionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,20 +30,15 @@ public class TestOllama {
     @Resource
     private OllamaChatModel chatModel;
 
+    @Resource
+    private ConnectionRepository connectionRepository;
+
     @Test
-    public void chat() {
-        String message = "查询tb_products表里的所有数据";
-        String SYSTEM_PROMPT = """
-                你是一位SQL语句编写专家，我现在交给你一个任务，你需要根据我的描述生成一条正确且高效的sql语句，生成的sql语句用<sql>标签包裹。
-                比如我要你查询tb_user表中的所有数据，你需要生成<sql>SELECT * FROM tb_user</sql>这样的sql语句。
-                DOCUMENTS:
-                    {documents}
-                """;
+    public void chat() throws Exception {
 
-        Message messages = new SystemPromptTemplate(SYSTEM_PROMPT).createMessage(Map.of("documents", message));
-        ChatResponse chatResponse = chatModel
-                .call(new Prompt(messages));
+        String str = connectionRepository.getSql("查询tb_products表里的所有数据");
 
-        log.info("测试结果:{}", JSON.toJSONString(chatResponse));
+        log.info("测试结果:{}", str);
+
     }
 }
