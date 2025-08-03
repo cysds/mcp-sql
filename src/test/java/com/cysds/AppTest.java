@@ -1,7 +1,7 @@
 package com.cysds;
 
-import com.cysds.entity.MysqlConnectionEntity;
-import com.cysds.service.repository.ConnectionRepository;
+import com.cysds.domain.entity.MysqlConnectionEntity;
+import com.cysds.domain.repository.ConnectionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,7 +24,7 @@ public class AppTest {
     @Test
     public void testConnection() throws Exception {
         mysqlConnectionEntity.setHost("127.0.0.1");
-        mysqlConnectionEntity.setPort("3306");
+        mysqlConnectionEntity.setPort(3306);
         mysqlConnectionEntity.setDatabase("cysds");
         mysqlConnectionEntity.setUsername("root");
         mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");

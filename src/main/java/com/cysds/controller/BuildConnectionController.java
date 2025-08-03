@@ -1,13 +1,14 @@
 package com.cysds.controller;
 
-import com.cysds.entity.MysqlConnectionEntity;
-import com.cysds.service.repository.ConnectionRepository;
+import com.cysds.domain.entity.ConnectionEntity;
+import com.cysds.domain.router.DynamicDataSourceRouter;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.annotation.Resource;
+import java.sql.Connection;
 
 /**
  * @author: 谢玮杰
@@ -19,10 +20,14 @@ import javax.annotation.Resource;
 public class BuildConnectionController {
 
     @Resource
-    private ConnectionRepository connectionRepository;
+    private DynamicDataSourceRouter dsRouter;
 
-    @PostMapping("/connect")
-    public void buildConnection(@RequestBody MysqlConnectionEntity mysqlConnectionEntity) throws Exception {
-        connectionRepository.buildConnection(mysqlConnectionEntity);
+    @PostMapping("/test")
+    public String testConnection(@RequestBody ConnectionEntity ent) {
+        try (Connection conn = dsRouter.getConnection(ent)) {
+            return "OK: " + conn.getMetaData().getURL();
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
+        }
     }
 }

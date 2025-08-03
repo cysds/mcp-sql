@@ -1,21 +1,15 @@
 package com.cysds;
 
-import com.alibaba.fastjson2.JSON;
-import com.cysds.service.repository.ConnectionRepository;
+import com.cysds.domain.repository.ConnectionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.ai.ollama.OllamaChatModel;
 
 
 import javax.annotation.Resource;
-import java.util.Map;
 
 /**
  * @author: 谢玮杰

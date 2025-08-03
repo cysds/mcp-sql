@@ -1,9 +1,8 @@
-package com.cysds.entity;
+package com.cysds.domain.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
  * @author: 谢玮杰
@@ -12,12 +11,13 @@ import lombok.NoArgsConstructor;
  **/
 @Data
 @AllArgsConstructor
-@NoArgsConstructor
 @Builder
-public class MysqlConnectionEntity {
+public class MysqlConnectionEntity extends ConnectionEntity {
     private String host;
-    private String port;
+    private int    port;
     private String database;
-    private String username;
-    private String password;
+
+    public MysqlConnectionEntity() {
+        setType(DbType.MYSQL);
+    }
 }

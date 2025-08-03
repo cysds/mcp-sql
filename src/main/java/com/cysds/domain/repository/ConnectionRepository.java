@@ -1,7 +1,8 @@
-package com.cysds.service.repository;
+package com.cysds.domain.repository;
 
-import com.cysds.entity.MysqlConnectionEntity;
-import com.cysds.service.DynamicDataSourceService;
+import com.cysds.domain.entity.MysqlConnectionEntity;
+import com.cysds.domain.router.DynamicDataSourceRouter;
+import com.cysds.domain.service.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
@@ -9,10 +10,13 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Resource;
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -33,16 +37,17 @@ public class ConnectionRepository {
     @Resource
     private OllamaChatModel chatModel;
 
-    @Resource
-    private DynamicDataSourceService dsService;
+    @Autowired
+    private DynamicDataSourceRouter dsRouter;
 
-    @Resource
+
     private HikariDataSource mysqlDataSource; //HikariDataSource
 
     private JdbcTemplate jdbcTemplate;
 
-    public void buildConnection(MysqlConnectionEntity mysqlConnectionEntity) throws Exception {
-        this.mysqlDataSource = dsService.createDataSource(mysqlConnectionEntity);
+    public void buildConnection(MysqlConnectionEntity mysqlConnectionEntity) {
+        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用 MysqlDataSourceService
+        mysqlDataSource = dsRouter.createDataSource(mysqlConnectionEntity);
         this.jdbcTemplate = new JdbcTemplate(mysqlDataSource);
     }
 
