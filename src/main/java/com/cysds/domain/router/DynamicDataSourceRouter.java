@@ -5,8 +5,6 @@ import com.cysds.domain.service.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -14,9 +12,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * @author: 谢玮杰
- * @description:
- * @create: 2025-08-03 10:22
+ * &#064;author:  谢玮杰
+ * &#064;description:  动态路由，根据传入的数据类型自动路由到对应的数据源类型
+ * &#064;create:  2025-08-03 10:22
  **/
 @Component
 public class DynamicDataSourceRouter {

@@ -12,9 +12,9 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import javax.annotation.Resource;
 
 /**
- * @author: 谢玮杰
- * @description:
- * @create: 2025-07-29 19:55
+ * &#064;@author: 谢玮杰
+ * &#064;@description:
+ * &#064;@create: 2025-07-29 19:55
  **/
 @Slf4j
 @RunWith(SpringRunner.class)

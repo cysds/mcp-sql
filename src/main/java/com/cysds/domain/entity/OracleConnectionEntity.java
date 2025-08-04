@@ -5,9 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * @author: 谢玮杰
- * @description: 建立Oracle连接的参数
- * @create: 2025-08-03 09:58
+ * &#064;@author: 谢玮杰
+ * &#064;@description: 建立Oracle连接的参数
+ * &#064;@create: 2025-08-03 09:58
  **/
 @Data
 @AllArgsConstructor

@@ -5,9 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * @author: 谢玮杰
- * @description:
- * @create: 2025-08-03 09:59
+ * &#064;@author: 谢玮杰
+ * &#064;@description:
+ * &#064;@create: 2025-08-03 09:59
  **/
 @Data
 @AllArgsConstructor

@@ -1,8 +1,7 @@
 package com.cysds.domain.repository;
 
-import com.cysds.domain.entity.MysqlConnectionEntity;
+import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
-import com.cysds.domain.service.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
@@ -11,12 +10,9 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-
 import javax.annotation.Resource;
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -26,9 +22,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author: 谢玮杰
- * @description:
- * @create: 2025-07-26 23:07
+ * &#064;@author: 谢玮杰
+ * &#064;description: 连接仓储，便于后续的各种操作
+ * &#064;@create: 2025-07-26 23:07
  **/
 @Slf4j
 @Repository
@@ -40,19 +36,19 @@ public class ConnectionRepository {
     @Autowired
     private DynamicDataSourceRouter dsRouter;
 
-
-    private HikariDataSource mysqlDataSource; //HikariDataSource
+    private HikariDataSource dataSource; //HikariDataSource
 
     private JdbcTemplate jdbcTemplate;
 
-    public void buildConnection(MysqlConnectionEntity mysqlConnectionEntity) {
-        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用 MysqlDataSourceService
-        mysqlDataSource = dsRouter.createDataSource(mysqlConnectionEntity);
-        this.jdbcTemplate = new JdbcTemplate(mysqlDataSource);
+    public void buildConnection(ConnectionEntity connectionEntity) {
+        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
+        dataSource = dsRouter.createDataSource(connectionEntity);
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
-    public List<Map<String, Object>> queryAllUsers() {
-        String sql = "SELECT * FROM tb_user";
+    public List<Map<String, Object>> execute(String message) throws Exception {
+
+        String sql = getSql(message);
         return jdbcTemplate.queryForList(sql);
     }
 
@@ -73,6 +69,7 @@ public class ConnectionRepository {
             你是一位专业的 SQL 语句编写专家。
             请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句，使用 `<sql>…</sql>` 标签包裹结果。
             例如：<sql>SELECT * FROM tb_user;</sql>
+            我只会让你生成查询语句，如果用户有增删改要求，请直接拒绝。
             DATABASE DETAILS:
                 {dbDetails}
             DOCUMENTS:
@@ -102,7 +99,7 @@ public class ConnectionRepository {
     private String getAllTablesStructureAsString() {
         StringBuilder sb = new StringBuilder();
 
-        try (Connection conn = mysqlDataSource.getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             String catalog = conn.getCatalog(); // 当前数据库名
 
