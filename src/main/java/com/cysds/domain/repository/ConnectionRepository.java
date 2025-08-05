@@ -1,6 +1,8 @@
 package com.cysds.domain.repository;
 
+import com.cysds.dao.IMysqlDao;
 import com.cysds.domain.entity.ConnectionEntity;
+import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +11,6 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import javax.annotation.Resource;
@@ -36,6 +37,9 @@ public class ConnectionRepository {
     @Resource
     private DynamicDataSourceRouter dsRouter;
 
+    @Resource
+    private IMysqlDao mysqlDao;
+
     private HikariDataSource dataSource; //HikariDataSource
 
     private JdbcTemplate jdbcTemplate;
@@ -44,6 +48,17 @@ public class ConnectionRepository {
         // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
         dataSource = dsRouter.createDataSource(connectionEntity);
         this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
+    public Connection connectByUserAndDb(String username, String databaseName) throws SQLException {
+        MysqlConnectionEntity entity =
+                mysqlDao.getMysqlConnByUserAndDb(username, databaseName);
+        if (entity == null) {
+            throw new IllegalArgumentException(
+                    String.format("未找到 username=%s, database=%s 的连接记录", username, databaseName));
+        }
+        buildConnection(entity);
+        return dsRouter.getConnection(entity);
     }
 
     public List<Map<String, Object>> execute(String message) throws Exception {

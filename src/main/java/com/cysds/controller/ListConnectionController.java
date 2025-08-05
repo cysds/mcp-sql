@@ -6,8 +6,7 @@ import com.cysds.dao.ISqlserverDao;
 import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.entity.OracleConnectionEntity;
 import com.cysds.domain.entity.SqlServerConnectionEntity;
-import com.cysds.domain.router.DynamicDataSourceRouter;
-import com.cysds.domain.service.ConnectionService;
+import com.cysds.domain.repository.ConnectionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,9 +26,6 @@ import java.util.List;
 public class ListConnectionController {
 
     @Resource
-    private DynamicDataSourceRouter dsRouter;
-
-    @Resource
     private IMysqlDao mysqlDao;
 
     @Resource
@@ -39,7 +35,7 @@ public class ListConnectionController {
     private ISqlserverDao sqlserverDao;
 
     @Resource
-    private ConnectionService connectionService;
+    private ConnectionRepository connectionRepository;
 
     @GetMapping("/listMysql")
     public List<MysqlConnectionEntity> listMysql() {
@@ -60,7 +56,7 @@ public class ListConnectionController {
     public ResponseEntity<String> connect(
             @RequestParam String username,
             @RequestParam String databaseName) {
-        try (Connection conn = connectionService.connectByUserAndDb(username, databaseName)) {
+        try (Connection conn = connectionRepository.connectByUserAndDb(username, databaseName)) {
             if (conn.isValid(2)) {
                 return ResponseEntity.ok("连接成功！");
             } else {
