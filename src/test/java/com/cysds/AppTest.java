@@ -46,12 +46,14 @@ public class AppTest {
 
     @Test
     public void testMysqlDao() throws Exception {
-        mysqlConnectionEntity.setHost("127.0.0.1");
-        mysqlConnectionEntity.setPort(3306);
-        mysqlConnectionEntity.setDatabase("database_work");
-        mysqlConnectionEntity.setUsername("root");
-        mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
-
-        mysqlDao.InsertMysqlConn(mysqlConnectionEntity);
+//        mysqlConnectionEntity.setHost("127.0.0.1");
+//        mysqlConnectionEntity.setPort(3306);
+//        mysqlConnectionEntity.setDatabase("database_work");
+//        mysqlConnectionEntity.setUsername("root");
+//        mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
+//
+//        mysqlDao.InsertMysqlConn(mysqlConnectionEntity);
+        List<MysqlConnectionEntity> mysqlConnectionEntities = mysqlDao.ListMysqlConn();
+        System.out.println(mysqlConnectionEntities);
     }
 }

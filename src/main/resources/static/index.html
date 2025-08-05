@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库连接测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        button { padding: 6px 12px; border: none; background-color: #28a745; color: white; cursor: pointer; border-radius: 4px; }
+        button:hover { background-color: #218838; }
+        .debug { margin-top: 20px; color: #555; font-size: 0.9em; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<h1>数据库连接测试</h1>
+
+<section id="mysql-section">
+    <h2>MySQL 连接列表</h2>
+    <table id="mysql-table">
+        <thead>
+        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
+        </thead>
+        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
+    </table>
+</section>
+
+<section id="oracle-section">
+    <h2>Oracle 连接列表</h2>
+    <table id="oracle-table">
+        <thead>
+        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
+        </thead>
+        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
+    </table>
+</section>
+
+<section id="sqlserver-section">
+    <h2>SqlServer 连接列表</h2>
+    <table id="sqlserver-table">
+        <thead>
+        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
+        </thead>
+        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
+    </table>
+</section>
+
+<div class="debug" id="debug-log"></div>
+
+<script>
+    // 固定 API 基础路径，无需动态计算
+    const apiBase = 'http://localhost:8080/v1/api/db';
+    const logEl = document.getElementById('debug-log');
+
+    function log(msg) {
+        console.log(msg);
+        logEl.textContent += msg + '\n';
+    }
+
+    async function fetchAndRender(endpoint, tableId) {
+        log(`请求 ${endpoint} -> ${apiBase}/${endpoint}`);
+        try {
+            const res = await fetch(`${apiBase}/${endpoint}`);
+            log(`状态: ${res.status}`);
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            tbody.innerHTML = '';
+
+            if (!res.ok) {
+                let errMsg = await res.text();
+                log(`错误响应: ${errMsg}`);
+                tbody.innerHTML = `<tr><td colspan=6>Error ${res.status}: ${errMsg}</td></tr>`;
+                return;
+            }
+
+            const list = await res.json();
+            log(`${endpoint} 返回: ${JSON.stringify(list)}`);
+
+            if (!Array.isArray(list) || list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan=6>无连接记录</td></tr>`;
+                return;
+            }
+
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                ['type','username','host','port','database'].forEach(key => {
+                    const td = document.createElement('td');
+                    td.textContent = item[key] || '';
+                    tr.appendChild(td);
+                });
+                tr.innerHTML += `<td><button onclick="connect('${item.username}','${item.database}')">连接</button></td>`;
+                document.querySelector(`#${tableId} tbody`).appendChild(tr);
+            });
+        } catch (err) {
+            log(`Fetch error for ${endpoint}: ${err}`);
+            document.querySelector(`#${tableId} tbody`).innerHTML = `<tr><td colspan=6>请求异常: ${err}</td></tr>`;
+        }
+    }
+
+    async function connect(username, databaseName) {
+        const url = `${apiBase}/connect?username=${encodeURIComponent(username)}&databaseName=${encodeURIComponent(databaseName)}`;
+        try {
+            const res = await fetch(url);
+            const text = await res.text();
+            alert(text);
+        } catch (e) {
+            alert('请求出错：' + e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchAndRender('listMysql', 'mysql-table');
+        fetchAndRender('listOracle', 'oracle-table');
+        fetchAndRender('listSqlserver', 'sqlserver-table');
+    });
+</script>
+</body>
+</html>

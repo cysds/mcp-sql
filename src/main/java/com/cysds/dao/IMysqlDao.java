@@ -17,5 +17,6 @@ public interface IMysqlDao {
 
     List<MysqlConnectionEntity> ListMysqlConn();
 
-    MysqlConnectionEntity SelectMysqlConn(int id);
+    MysqlConnectionEntity getMysqlConnByUserAndDb(String username, String databaseName);
+
 }

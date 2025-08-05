@@ -33,7 +33,7 @@ public class ConnectionRepository {
     @Resource
     private OllamaChatModel chatModel;
 
-    @Autowired
+    @Resource
     private DynamicDataSourceRouter dsRouter;
 
     private HikariDataSource dataSource; //HikariDataSource

@@ -11,7 +11,7 @@ import lombok.Data;
 public abstract class ConnectionEntity {
     public enum DbType { MYSQL, ORACLE, SQLSERVER }
 
-    private DbType type;
-    private String username;
-    private String password;
+    protected DbType type;
+    protected String username;
+    protected String password;
 }

@@ -11,12 +11,11 @@ import java.util.List;
  * &#064;@description:
  * &#064;@create: 2025-08-04 22:01
  **/
-
+@Mapper
 public interface IOracleDao {
 
     void InsertOracleConn(OracleConnectionEntity oracleConnectionEntity);
 
     List<OracleConnectionEntity> ListOracleConn();
 
-    OracleConnectionEntity SelectOracleConn(int id);
 }

@@ -3,59 +3,44 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.cysds.dao.IMysqlDao">
+<mapper namespace="com.cysds.dao.IOracleDao">
 
     <!-- 结果映射，把列名映射到实体属性 -->
-    <resultMap id="MysqlConnMap" type="com.cysds.domain.entity.MysqlConnectionEntity">
+    <resultMap id="OracleConnMap" type="com.cysds.domain.entity.OracleConnectionEntity">
         <result property="type"     column="type" />
         <result property="username" column="username" />
         <result property="password" column="password" />
         <result property="host"     column="host" />
         <result property="port"     column="port" />
-        <result property="database" column="database_name" />
+        <result property="serviceName" column="service_name" />
     </resultMap>
 
     <!-- 插入，生成主键后回填到 entity.id -->
-    <insert id="InsertMysqlConn"
-            parameterType="com.cysds.domain.entity.MysqlConnectionEntity"
+    <insert id="InsertOracleConn"
+            parameterType="com.cysds.domain.entity.OracleConnectionEntity"
             useGeneratedKeys="true"
             keyProperty="id">
-        INSERT INTO tb_mysql_conn
-            (type, username, password, host, port, database_name)
+        INSERT INTO tb_oracle_conn
+            (type, username, password, host, port, service_name)
         VALUES
             (#{type},
              #{username},
              #{password},
              #{host},
              #{port},
-             #{database})
+             #{serviceName})
     </insert>
 
     <!-- 查询所有 -->
-    <select id="ListMysqlConn"
-            resultMap="MysqlConnMap">
+    <select id="ListOracleConn"
+            resultMap="OracleConnMap">
         SELECT
             type,
             username,
             host,
             port,
-            database_name
-        FROM tb_mysql_conn
-    </select>
-
-    <select id="getMysqlConnByUserAndDb"
-            resultMap="MysqlConnMap"
-            parameterType="map">
-        SELECT
-            type,
-            username,
-            password,
-            host,
-            port,
-            database_name
-        FROM tb_mysql_conn
-        WHERE username = #{username}
-          AND database_name = #{databaseName}
+            service_name
+        FROM tb_oracle_conn
     </select>
 
 </mapper>
