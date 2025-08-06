@@ -37,11 +37,7 @@ public class AppTest {
 
         connectionRepository.buildConnection(mysqlConnectionEntity);
 
-        List<Map<String, Object>> maps = connectionRepository.execute("查询每门课程的平均分");
-
-        for (Map<String, Object> map : maps) {
-            log.info(map.toString());
-        }
+        connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
     }
 
     @Test

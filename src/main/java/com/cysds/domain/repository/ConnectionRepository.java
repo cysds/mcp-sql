@@ -4,6 +4,7 @@ import com.cysds.dao.IMysqlDao;
 import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
@@ -13,7 +14,14 @@ import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+
 import javax.annotation.Resource;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -21,6 +29,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * &#064;@author: 谢玮杰
@@ -61,13 +70,110 @@ public class ConnectionRepository {
         return dsRouter.getConnection(entity);
     }
 
-    public List<Map<String, Object>> execute(String message) throws Exception {
+    public Flux<ChatResponse> execute(String message) throws Exception {
+        String dbDetails = getAllTablesStructureAsString();
+        String SYSTEM_PROMPT = """
+            你是一位专业的 SQL 语句编写专家。
+            请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句，使用 `<sql>…</sql>` 标签包裹结果。
+            例如：<sql>SELECT * FROM tb_user;</sql>
+            我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
+            documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
+            DATABASE DETAILS:
+                {dbDetails}
+            DOCUMENTS:
+                {documents}
+            """;
 
-        String sql = getSql(message);
-        return jdbcTemplate.queryForList(sql);
+        Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
+                .createMessage(Map.of(
+                        "documents", message,
+                        "dbDetails", dbDetails));
+        ChatResponse sqlChatResponse = chatModel
+                .call(new Prompt(sqlQueryMessages));
+
+        String content = sqlChatResponse.getResult().getOutput().getText();
+        String sql = extractSql(content);
+        assert sql != null;
+        List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
+
+        String jsonData = new ObjectMapper().writeValueAsString(dbResults);
+
+        String DRAW_PROMPT = """
+           你是一位数据分析和可视化专家。
+           下面是我查询得到的数据(JSON格式)：
+           {data}
+           以下是我的需求：
+           {question}
+           需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
+           请根据上述数据和需求写一个Python脚本绘制一个图表。
+           请直接输出Python脚本，不要包含任何其他文字。
+           """;
+        Message scriptMessages = new SystemPromptTemplate(DRAW_PROMPT)
+                .createMessage(Map.of(
+                        "question", message,
+                        "data", jsonData));
+        ChatResponse scriptChatResponse = chatModel.call(new Prompt(scriptMessages));
+
+        String pythonScript = extractPythonCode(scriptChatResponse.getResult().getOutput().getText());
+
+        String run = runPythonScript(pythonScript);
+
+        return null;
     }
 
-    public String extractSql(String chatResponse) {
+
+    /**
+     * 将 script 内容写入临时 .py 文件并执行，返回脚本的标准输出内容。
+     *
+     * @param script Python 脚本内容
+     * @return 脚本执行后的标准输出
+     * @throws Exception
+     */
+    private String runPythonScript(String script) throws Exception {
+        // 1. 创建临时文件
+        Path tempFile = Files.createTempFile("script_", ".py");
+
+        // 2. 写入脚本内容
+        Files.writeString(tempFile, script, StandardOpenOption.TRUNCATE_EXISTING);
+
+        // 3. 构造命令：假设系统命令 python 或 python3 可用
+        String pythonCmd = "python3";
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            // Windows 下可能需要直接用 python
+            pythonCmd = "python";
+        }
+        ProcessBuilder pb = new ProcessBuilder(pythonCmd, tempFile.toAbsolutePath().toString());
+        pb.redirectErrorStream(true);  // 将 stderr 合并到 stdout
+
+        // 4. 启动进程
+        Process process = pb.start();
+
+        // 5. 读取输出
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String output = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Python 脚本执行失败，退出码：" + exitCode + "\n输出：\n" + output);
+            }
+            return output;
+        } finally {
+            // 6. 删除临时文件
+            Files.deleteIfExists(tempFile);
+        }
+    }
+
+    private String extractPythonCode(String text) {
+        // (?s) 使 . 能匹配换行；(?<=```python\\s) 前向断言；(?=```) 后向断言
+        String regex = "(?s)(?<=```python\\s)([\\s\\S]+?)(?=```)";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    private String extractSql(String chatResponse) {
         // (?s) 模式让 . 匹配包括换行在内的任意字符
         Pattern pattern = Pattern.compile("(?s)<sql>(.*?)</sql>");
         Matcher matcher = pattern.matcher(chatResponse);
@@ -77,35 +183,6 @@ public class ConnectionRepository {
         }
         return null;
     }
-
-    public String getSql(String message) throws Exception {
-        String dbDetails = getAllTablesStructureAsString();
-        String SYSTEM_PROMPT = """
-            你是一位专业的 SQL 语句编写专家。
-            请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句，使用 `<sql>…</sql>` 标签包裹结果。
-            例如：<sql>SELECT * FROM tb_user;</sql>
-            我只会让你生成查询语句，如果用户有增删改要求，请直接拒绝。
-            DATABASE DETAILS:
-                {dbDetails}
-            DOCUMENTS:
-                {documents}
-            """;
-
-        Message messages = new SystemPromptTemplate(SYSTEM_PROMPT)
-                .createMessage(Map.of(
-                        "documents", message,
-                        "dbDetails", dbDetails));
-        ChatResponse chatResponse = chatModel
-                .call(new Prompt(messages));
-
-        String content = chatResponse.getResult().getOutput().getText();
-        String sql = extractSql(content);
-        assert sql != null;
-
-        return sql;
-
-    }
-
     /**
      * 获取当前数据库中所有表及其字段结构，并拼成一个字符串返回
      *

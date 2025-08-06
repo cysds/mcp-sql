@@ -30,9 +30,9 @@ public class TestOllama {
     @Test
     public void chat() throws Exception {
 
-        String str = connectionRepository.getSql("查询tb_products表里的所有数据");
+//        String str = connectionRepository.getSql("查询tb_products表里的所有数据");
 
-        log.info("测试结果:{}", str);
+//        log.info("测试结果:{}", str);
 
     }
 }
