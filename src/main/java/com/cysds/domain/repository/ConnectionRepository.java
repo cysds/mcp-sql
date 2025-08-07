@@ -26,6 +26,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,18 +71,24 @@ public class ConnectionRepository {
         return dsRouter.getConnection(entity);
     }
 
-    public Flux<ChatResponse> execute(String message) throws Exception {
+    public Flux<String> execute(String message) throws Exception {
         String dbDetails = getAllTablesStructureAsString();
         String SYSTEM_PROMPT = """
             你是一位专业的 SQL 语句编写专家。
-            请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句，使用 `<sql>…</sql>` 标签包裹结果。
-            例如：<sql>SELECT * FROM tb_user;</sql>
-            我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
-            documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
+            请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句。
             DATABASE DETAILS:
                 {dbDetails}
             DOCUMENTS:
                 {documents}
+            注意：
+            1. 生成的SQL语句请一定要用```sql```包裹起来。
+               如:
+               ```sql
+               select * from user;
+               ```
+            2. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
+            3. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
+            4. 请直接输出SQL语句，不要包含任何其他文字。
             """;
 
         Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
@@ -92,7 +99,7 @@ public class ConnectionRepository {
                 .call(new Prompt(sqlQueryMessages));
 
         String content = sqlChatResponse.getResult().getOutput().getText();
-        String sql = extractSql(content);
+        String sql = extractText("sql", content);
         assert sql != null;
         List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
 
@@ -104,9 +111,14 @@ public class ConnectionRepository {
            {data}
            以下是我的需求：
            {question}
-           需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
-           请根据上述数据和需求写一个Python脚本绘制一个图表。
-           请直接输出Python脚本，不要包含任何其他文字。
+           注意：
+           1. 需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
+           2. 我的标签中可能含有中文，你在绘图时一定要加上这一行:plt.rcParams['font.sans-serif'] = ['SimHei'];
+           3. 如果在bar中出现数字，一定将它转成字符串，如 sorted_df['Cno'].astype(str),  # 转成 str
+           4. 请在脚本末尾，使用 Matplotlib 将绘图保存到一个内存中的字节缓冲区（io.BytesIO），格式为 PNG。
+           5. 然后，通过 `sys.stdout.buffer.write(buf.read())` 把 PNG 原始二进制直接写到标准输出（不要调用 show()），记得import sys。
+           6. 脚本不要打印其他任何文本或日志，只输出纯粹的 PNG 二进制数据。
+           7. 请直接输出Python脚本，不要包含任何其他文字。
            """;
         Message scriptMessages = new SystemPromptTemplate(DRAW_PROMPT)
                 .createMessage(Map.of(
@@ -114,11 +126,16 @@ public class ConnectionRepository {
                         "data", jsonData));
         ChatResponse scriptChatResponse = chatModel.call(new Prompt(scriptMessages));
 
-        String pythonScript = extractPythonCode(scriptChatResponse.getResult().getOutput().getText());
+        String pythonScript = extractText("python",scriptChatResponse.getResult().getOutput().getText());
 
-        String run = runPythonScript(pythonScript);
+        byte[] pngBytes = runPythonScript(pythonScript);
 
-        return null;
+        // …生成 sql、运行、生成 python 脚本、跑出 pngBytes…
+        String sqlMarkdown = "```sql\n" + sql + "\n```";
+        String base64 = Base64.getEncoder().encodeToString(pngBytes);
+        String imgMd = "![chart](data:image/png;base64," + base64 + ")";
+
+        return Flux.just(sqlMarkdown, imgMd);
     }
 
 
@@ -127,9 +144,9 @@ public class ConnectionRepository {
      *
      * @param script Python 脚本内容
      * @return 脚本执行后的标准输出
-     * @throws Exception
+     * @throws Exception 如果执行脚本时发生异常则抛出
      */
-    private String runPythonScript(String script) throws Exception {
+    private byte[] runPythonScript(String script) throws Exception {
         // 1. 创建临时文件
         Path tempFile = Files.createTempFile("script_", ".py");
 
@@ -155,31 +172,26 @@ public class ConnectionRepository {
             if (exitCode != 0) {
                 throw new RuntimeException("Python 脚本执行失败，退出码：" + exitCode + "\n输出：\n" + output);
             }
-            return output;
+            return output.getBytes();
         } finally {
             // 6. 删除临时文件
             Files.deleteIfExists(tempFile);
         }
     }
 
-    private String extractPythonCode(String text) {
+    /**
+     * 从文本中提取指定分隔符的内容
+     * @param splitter 分隔符，可以是 sql 或 python
+     * @param text ai生成的文本
+     * @return 纯净的sql语句或python语句
+     */
+    private String extractText(String splitter, String text) {
         // (?s) 使 . 能匹配换行；(?<=```python\\s) 前向断言；(?=```) 后向断言
-        String regex = "(?s)(?<=```python\\s)([\\s\\S]+?)(?=```)";
+        String regex = "(?s)(?<=```" + splitter + "\\s)([\\s\\S]+?)(?=```)";
         Pattern pattern = Pattern.compile(regex);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             return matcher.group(1);
-        }
-        return null;
-    }
-
-    private String extractSql(String chatResponse) {
-        // (?s) 模式让 . 匹配包括换行在内的任意字符
-        Pattern pattern = Pattern.compile("(?s)<sql>(.*?)</sql>");
-        Matcher matcher = pattern.matcher(chatResponse);
-        if (matcher.find()) {
-            // group(1) 即捕获组里的内容
-            return matcher.group(1).trim();
         }
         return null;
     }

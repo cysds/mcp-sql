@@ -9,10 +9,10 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
+import reactor.core.publisher.Flux;
 
 import javax.annotation.Resource;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -37,7 +37,9 @@ public class AppTest {
 
         connectionRepository.buildConnection(mysqlConnectionEntity);
 
-        connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
+        Flux<String> stringFlux = connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
+
+        stringFlux.subscribe(System.out::println);
     }
 
     @Test
