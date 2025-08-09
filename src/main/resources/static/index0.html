@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>测试 /v1/api/db/execute (NDJSON 流式返回)</title>
+    <style>
+        body{font-family: system-ui, sans-serif; max-width:900px;margin:24px auto;padding:12px}
+        textarea{width:100%;height:120px;font-family:monospace}
+        pre{background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap}
+        .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+        button{padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
+        img{max-width:100%;border:1px solid #ddd;padding:6px;border-radius:6px;margin-top:8px}
+        #log{height:140px;overflow:auto;background:#0b1220;color:#cfe9ff;padding:8px;border-radius:6px}
+        label.small{font-size:0.9rem;color:#555;margin-right:6px}
+        input[type=text]{padding:6px;border-radius:6px;border:1px solid #ccc}
+    </style>
+</head>
+<body>
+<h2>测试 /v1/api/db/execute（NDJSON 流 + 图片）</h2>
+<p>如果你把页面放在 Spring Boot 的静态目录并通过 <strong>http://localhost:8080/execute-test.html</strong> 打开，页面会自动使用当前 origin 进行请求（相对路径 <code>/v1/api/db/execute</code>）。如果你想强制指定服务器地址，请在下面输入 Base URL（默认已填 <code>http://localhost:8080</code>）。</p>
+
+<div class="row">
+    <label class="small">Base URL（可留空以使用当前页面 origin）：</label>
+    <input id="baseUrl" type="text" value="http://localhost:8080" style="width:360px" />
+</div>
+
+<label>请求内容（原样作为请求 body 发出）：</label>
+<textarea id="message">SELECT Cno AS '课程编号', AVG(Grade) AS '平均成绩' FROM sc GROUP BY Cno;</textarea>
+
+<div class="row">
+    <label for="ctype">Content-Type:</label>
+    <select id="ctype">
+        <option value="text/plain">text/plain</option>
+        <option value="application/json">application/json</option>
+    </select>
+    <button id="btn">执行 (POST /v1/api/db/execute)</button>
+    <button id="clear">清除</button>
+</div>
+
+<h3>返回 — SQL (markdown 原文)：</h3>
+<pre id="sql">（尚无内容）</pre>
+
+<h3>返回 — 图片预览：</h3>
+<img id="img" alt="返回图片（如果有）" src="" />
+
+<h3>流日志：</h3>
+<div id="log">等待请求...</div>
+
+<script>
+    const btn = document.getElementById('btn');
+    const clearBtn = document.getElementById('clear');
+    const msgEl = document.getElementById('message');
+    const sqlEl = document.getElementById('sql');
+    const imgEl = document.getElementById('img');
+    const logEl = document.getElementById('log');
+    const ctypeEl = document.getElementById('ctype');
+    const baseUrlInput = document.getElementById('baseUrl');
+
+    function log(...args){
+        const t = new Date().toLocaleTimeString();
+        logEl.textContent += `[${t}] ` + args.join(' ') + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    clearBtn.onclick = () => {
+        sqlEl.textContent = '(尚无内容)';
+        imgEl.src = '';
+        logEl.textContent = '';
+    };
+
+    btn.onclick = async () => {
+        sqlEl.textContent = '(等待响应...)';
+        imgEl.src = '';
+        logEl.textContent = '';
+
+        const body = msgEl.value;
+        const contentType = ctypeEl.value;
+
+        // 选择 Base URL：若留空则使用当前页面 origin
+        const userBase = (baseUrlInput.value || '').trim();
+        const base = userBase || window.location.origin;
+        const endpoint = base.replace(/\/$/, '') + '/v1/api/db/execute';
+
+        log('开始请求', endpoint);
+        try{
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': contentType, 'Accept': 'application/x-ndjson' },
+                body: body
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                log('HTTP 错误：', res.status, text);
+                sqlEl.textContent = '请求返回错误：' + res.status;
+                return;
+            }
+
+            if (!res.body) {
+                // 非流式返回的降级处理
+                log('响应没有 body（非流式）。尝试按文本解析');
+                const text = await res.text();
+                log('响应文本：', text);
+                sqlEl.textContent = text;
+                return;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+
+                let idx;
+                while ((idx = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, idx).trim();
+                buf = buf.slice(idx + 1);
+                if (!line) continue;
+                try{
+                    const msg = JSON.parse(line);
+                    log('收到消息：', JSON.stringify(msg));
+
+                    if (msg.type === 'markdown') {
+                        // 原样显示 markdown 文本
+                        sqlEl.textContent = msg.content;
+                    } else if (msg.type === 'image') {
+                        const content = msg.content;
+                        if (!content) {
+                            log('图片 content 为空');
+                            imgEl.src = '';
+                        } else if (content.startsWith('data:')) {
+                            // data URL（Base64 嵌入）
+                            imgEl.src = content;
+                        } else if (content.startsWith('http') || content.startsWith('https')) {
+                            imgEl.src = content;
+                        } else if (content.startsWith('/')) {
+                            // 相对路径：拼接 user-specified base 或当前 origin
+                            imgEl.src = base.replace(/\/$/, '') + content;
+                        } else {
+                            // 兜底（可能是 image id）
+                            imgEl.src = base.replace(/\/$/, '') + '/v1/api/db/execute/image/' + content;
+                        }
+                    } else {
+                        log('未知消息类型：', msg.type);
+                    }
+
+                } catch (err) {
+                    log('解析行失败：', err, 'line:', line);
+                }
+            }
+        }
+
+        // 读取剩余缓冲（如果最后一行没有换行）
+        if (buf.trim()) {
+            try{
+                const msg = JSON.parse(buf.trim());
+                log('收到尾部消息：', JSON.stringify(msg));
+                if (msg.type === 'markdown') sqlEl.textContent = msg.content;
+                if (msg.type === 'image') {
+                    const content = msg.content || '';
+                    if (content.startsWith('data:')) imgEl.src = content;
+                    else imgEl.src = base.replace(/\/$/, '') + content;
+                }
+            }catch(e){ log('尾部解析失败', e); }
+        }
+
+        log('流读取结束');
+    } catch (err) {
+        log('请求或流读取发生异常：', err);
+        sqlEl.textContent = '请求失败：' + err;
+    }
+    };
+</script>
+</body>
+</html>

@@ -19,7 +19,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import javax.annotation.Resource;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -94,13 +96,29 @@ public class ListConnectionController {
                 out.write(line1.getBytes());
                 out.flush();
 
-                // line 2: image URL (完整路径：如果需要域名，可在这里拼接)
-                String imageUrl = "/api/execute/image/" + res.getImageId();
+                // line 2: image URL
+//                String imageUrl = "/v1/api/db/execute/image/" + res.getImageId();
+//                String line2 = objectMapper.writeValueAsString(Map.of(
+//                        "type", "image",
+//                        "content", imageUrl
+//                )) + "\n";
+//                out.write(line2.getBytes());
+//                out.flush();
+                byte[] bytes = connectionRepository.getImageBytes(res.getImageId());
+
+                String imageContent;
+                if (bytes != null && bytes.length > 0) {
+                    String base64 = Base64.getEncoder().encodeToString(bytes);
+                    imageContent = "data:image/png;base64," + base64; // data URL
+                } else {
+                    imageContent = null; // 或者空字符串，视客户端解析逻辑而定
+                }
+
                 String line2 = objectMapper.writeValueAsString(Map.of(
                         "type", "image",
-                        "content", imageUrl
+                        "content", imageContent
                 )) + "\n";
-                out.write(line2.getBytes());
+                out.write(line2.getBytes(StandardCharsets.UTF_8));
                 out.flush();
             };
 
