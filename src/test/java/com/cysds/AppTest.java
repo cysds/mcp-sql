@@ -1,6 +1,7 @@
 package com.cysds;
 
 import com.cysds.dao.IMysqlDao;
+import com.cysds.domain.entity.ExecuteResult;
 import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.repository.ConnectionRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import reactor.core.publisher.Flux;
 
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -37,9 +39,8 @@ public class AppTest {
 
         connectionRepository.buildConnection(mysqlConnectionEntity);
 
-        Flux<String> stringFlux = connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
+        ExecuteResult executed = connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
 
-        stringFlux.subscribe(System.out::println);
     }
 
     @Test

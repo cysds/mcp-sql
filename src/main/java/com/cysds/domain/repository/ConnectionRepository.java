@@ -2,6 +2,7 @@ package com.cysds.domain.repository;
 
 import com.cysds.dao.IMysqlDao;
 import com.cysds.domain.entity.ConnectionEntity;
+import com.cysds.domain.entity.ExecuteResult;
 import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,10 +28,17 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.springframework.util.FileSystemUtils.deleteRecursively;
 
 /**
  * &#064;@author: 谢玮杰
@@ -40,7 +48,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Repository
 public class ConnectionRepository {
-
+    
     @Resource
     private OllamaChatModel chatModel;
 
@@ -53,6 +61,12 @@ public class ConnectionRepository {
     private HikariDataSource dataSource; //HikariDataSource
 
     private JdbcTemplate jdbcTemplate;
+
+    // 新增：图片内存缓存（id -> bytes）
+    private final Map<String, byte[]> imageStore = new ConcurrentHashMap<>();
+    // 新增：定时清理线程池
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
 
     public void buildConnection(ConnectionEntity connectionEntity) {
         // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
@@ -71,7 +85,7 @@ public class ConnectionRepository {
         return dsRouter.getConnection(entity);
     }
 
-    public Flux<String> execute(String message) throws Exception {
+    public ExecuteResult execute(String message) throws Exception {
         String dbDetails = getAllTablesStructureAsString();
         String SYSTEM_PROMPT = """
             你是一位专业的 SQL 语句编写专家。
@@ -115,10 +129,10 @@ public class ConnectionRepository {
            1. 需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
            2. 我的标签中可能含有中文，你在绘图时一定要加上这一行:plt.rcParams['font.sans-serif'] = ['SimHei'];
            3. 如果在bar中出现数字，一定将它转成字符串，如 sorted_df['Cno'].astype(str),  # 转成 str
-           4. 请在脚本末尾，使用 Matplotlib 将绘图保存到一个内存中的字节缓冲区（io.BytesIO），格式为 PNG。
-           5. 然后，通过 `sys.stdout.buffer.write(buf.read())` 把 PNG 原始二进制直接写到标准输出（不要调用 show()），记得import sys。
-           6. 脚本不要打印其他任何文本或日志，只输出纯粹的 PNG 二进制数据。
-           7. 请直接输出Python脚本，不要包含任何其他文字。
+           4. 请在脚本末尾，使用 Matplotlib 将绘图保存到当前工作目录下的文件 result.png，格式为 PNG，不要调用 show()。
+           5. 脚本不要打印其他任何文本或日志，也不要写任何注释，只输出纯粹的 PNG 二进制数据。
+           6. 请直接输出Python脚本，不要包含任何其他文字。
+           7. 生成的python脚本请一定要用```python```包裹起来。
            """;
         Message scriptMessages = new SystemPromptTemplate(DRAW_PROMPT)
                 .createMessage(Map.of(
@@ -127,55 +141,81 @@ public class ConnectionRepository {
         ChatResponse scriptChatResponse = chatModel.call(new Prompt(scriptMessages));
 
         String pythonScript = extractText("python",scriptChatResponse.getResult().getOutput().getText());
+        assert pythonScript != null;
 
-        byte[] pngBytes = runPythonScript(pythonScript);
-
-        // …生成 sql、运行、生成 python 脚本、跑出 pngBytes…
+        // 3) 写脚本到临时目录并以该目录为工作目录执行
+        String id = runPythonScript(pythonScript);
         String sqlMarkdown = "```sql\n" + sql + "\n```";
-        String base64 = Base64.getEncoder().encodeToString(pngBytes);
-        String imgMd = "![chart](data:image/png;base64," + base64 + ")";
 
-        return Flux.just(sqlMarkdown, imgMd);
+        return new ExecuteResult(sqlMarkdown, id);
     }
 
+    public byte[] getImageBytes(String id) {
+        return imageStore.get(id);
+    }
 
     /**
      * 将 script 内容写入临时 .py 文件并执行，返回脚本的标准输出内容。
      *
      * @param script Python 脚本内容
-     * @return 脚本执行后的标准输出
+     * @return 脚本的标准输出内容
      * @throws Exception 如果执行脚本时发生异常则抛出
      */
-    private byte[] runPythonScript(String script) throws Exception {
-        // 1. 创建临时文件
-        Path tempFile = Files.createTempFile("script_", ".py");
+    private String runPythonScript(String script) throws Exception {
+        Path tmpDir = Files.createTempDirectory("draw-");
+        try {
+            Path scriptPath = tmpDir.resolve("script.py");
+            Files.writeString(scriptPath, script, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        // 2. 写入脚本内容
-        Files.writeString(tempFile, script, StandardOpenOption.TRUNCATE_EXISTING);
-
-        // 3. 构造命令：假设系统命令 python 或 python3 可用
-        String pythonCmd = "python3";
-        if (System.getProperty("os.name").toLowerCase().contains("win")) {
-            // Windows 下可能需要直接用 python
-            pythonCmd = "python";
-        }
-        ProcessBuilder pb = new ProcessBuilder(pythonCmd, tempFile.toAbsolutePath().toString());
-        pb.redirectErrorStream(true);  // 将 stderr 合并到 stdout
-
-        // 4. 启动进程
-        Process process = pb.start();
-
-        // 5. 读取输出
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String output = reader.lines().collect(Collectors.joining(System.lineSeparator()));
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new RuntimeException("Python 脚本执行失败，退出码：" + exitCode + "\n输出：\n" + output);
+            // 选择 python 可执行名
+            String pythonCmd = "python3";
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                pythonCmd = "python";
             }
-            return output.getBytes();
+
+            ProcessBuilder pb = new ProcessBuilder(pythonCmd, scriptPath.getFileName().toString());
+            pb.directory(tmpDir.toFile());
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            // 读取并保留输出（以便调试报错时返回）
+            String output;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                output = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+            }
+
+            boolean finished = process.waitFor(30, TimeUnit.SECONDS); // 超时 30s，可按需调整
+            if (!finished) {
+                process.destroyForcibly();
+                throw new RuntimeException("Python 脚本执行超时（>30s）");
+            }
+            if (process.exitValue() != 0) {
+                throw new RuntimeException("Python 脚本执行失败，退出码：" + process.exitValue() + "\n输出：\n" + output);
+            }
+
+            // 4) 读取 result.png
+            Path resultPng = tmpDir.resolve("result.png");
+            if (!Files.exists(resultPng)) {
+                throw new RuntimeException("Python 脚本未生成 result.png，脚本输出：\n" + output);
+            }
+            byte[] imageBytes = Files.readAllBytes(resultPng);
+
+            // 5) 存缓存并安排清理
+            String id = UUID.randomUUID().toString();
+            imageStore.put(id, imageBytes);
+            // 5 分钟后清理，避免长期占用内存；可按需调整
+            scheduler.schedule(() -> imageStore.remove(id), 5, TimeUnit.MINUTES);
+
+            return id;
+
         } finally {
-            // 6. 删除临时文件
-            Files.deleteIfExists(tempFile);
+            // 清理临时目录（递归删除）
+            try {
+                deleteRecursively(tmpDir);
+            } catch (Exception e) {
+                log.warn("删除临时目录失败: {}", tmpDir, e);
+            }
         }
     }
 
