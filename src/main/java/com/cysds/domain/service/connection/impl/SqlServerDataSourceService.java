@@ -10,6 +10,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 /**
  * &#064;@author: 谢玮杰
@@ -17,10 +18,10 @@ import javax.annotation.Resource;
  * &#064;@create: 2025-08-03 10:18
  **/
 @Service
-public class SqlServerDataSourceService implements DynamicDataSourceService<SqlServerConnectionEntity>{
+public class SqlServerDataSourceService implements DynamicDataSourceService<SqlServerConnectionEntity>, ConnectionDao<SqlServerConnectionEntity>{
 
     @Resource
-    private ISqlserverDao sqlserverDao;
+    private ISqlserverDao sqlserverMapper;
 
     @Override
     public HikariDataSource createDataSource(SqlServerConnectionEntity entity) {
@@ -35,13 +36,23 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
         return new HikariDataSource(hc);
     }
 
-//    @Override
-//    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-//        return sqlserverDao.getSqlserverConnByUserAndDb(username, dbName);
-//    }
+    @Override
+    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
+        return sqlserverMapper.getSqlserverConnByUserAndDb(username, dbName);
+    }
 
     @Override
     public ConnectionEntity.DbType getDbType() {
         return ConnectionEntity.DbType.SQLSERVER;
+    }
+
+    @Override
+    public void InsertConn(ConnectionEntity connectionEntity) {
+        sqlserverMapper.InsertSqlserverConn((SqlServerConnectionEntity) connectionEntity);
+    }
+
+    @Override
+    public List<SqlServerConnectionEntity> getAllConn() {
+        return sqlserverMapper.ListSqlserverConn();
     }
 }

@@ -10,6 +10,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 /**
  * &#064;@author: 谢玮杰
@@ -17,11 +18,11 @@ import javax.annotation.Resource;
  * &#064;@create: 2025-08-03 10:17
  **/
 @Service
-public class OracleDataSourceService implements DynamicDataSourceService<OracleConnectionEntity>{
+public class OracleDataSourceService implements DynamicDataSourceService<OracleConnectionEntity>, ConnectionDao<OracleConnectionEntity>{
 
 
     @Resource
-    private IOracleDao oracleDao;
+    private IOracleDao oracleMapper;
 
     @Override
     public HikariDataSource createDataSource(OracleConnectionEntity ent) {
@@ -34,13 +35,23 @@ public class OracleDataSourceService implements DynamicDataSourceService<OracleC
         return new HikariDataSource(hc);
     }
 
-//    @Override
-//    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-//        return oracleDao.getOracleConnByUserAndDb(username, dbName);
-//    }
+    @Override
+    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
+        return oracleMapper.getOracleConnByUserAndDb(username, dbName);
+    }
 
     @Override
     public ConnectionEntity.DbType getDbType() {
         return ConnectionEntity.DbType.ORACLE;
+    }
+
+    @Override
+    public void InsertConn(ConnectionEntity connectionEntity) {
+        oracleMapper.InsertOracleConn((OracleConnectionEntity) connectionEntity);
+    }
+
+    @Override
+    public List<OracleConnectionEntity> getAllConn() {
+        return oracleMapper.ListOracleConn();
     }
 }

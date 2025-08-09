@@ -10,16 +10,18 @@ import com.zaxxer.hikari.HikariDataSource;
 import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * &#064;@author: 谢玮杰
  * &#064;@description: mysql数据源
  * &#064;@create: 2025-08-03 10:14
  **/
 @Service
-public class MysqlDataSourceService implements DynamicDataSourceService<MysqlConnectionEntity>{
+public class MysqlDataSourceService implements DynamicDataSourceService<MysqlConnectionEntity>,ConnectionDao<MysqlConnectionEntity>{
 
     @Resource
-    private IMysqlDao mysqlDao;
+    private IMysqlDao mysqlMapper;
 
     @Override
     public HikariDataSource createDataSource(MysqlConnectionEntity entity) {
@@ -30,13 +32,23 @@ public class MysqlDataSourceService implements DynamicDataSourceService<MysqlCon
         return new HikariDataSource(hc);
     }
 
-//    @Override
-//    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-//        return mysqlDao.getMysqlConnByUserAndDb(username, dbName);
-//    }
+    @Override
+    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
+        return mysqlMapper.getMysqlConnByUserAndDb(username, dbName);
+    }
 
     @Override
     public ConnectionEntity.DbType getDbType() {
         return ConnectionEntity.DbType.MYSQL;
+    }
+
+    @Override
+    public void InsertConn(ConnectionEntity connectionEntity) {
+        mysqlMapper.InsertMysqlConn((MysqlConnectionEntity) connectionEntity);
+    }
+
+    @Override
+    public List<MysqlConnectionEntity> getAllConn() {
+        return mysqlMapper.ListMysqlConn();
     }
 }
