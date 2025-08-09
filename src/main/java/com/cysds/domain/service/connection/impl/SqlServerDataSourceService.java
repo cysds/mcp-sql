@@ -1,13 +1,15 @@
-package com.cysds.domain.service.impl;
+package com.cysds.domain.service.connection.impl;
 
+import com.cysds.dao.ConnectionDao;
+import com.cysds.dao.ISqlserverDao;
 import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.entity.SqlServerConnectionEntity;
-import com.cysds.domain.service.DynamicDataSourceService;
+import com.cysds.domain.service.connection.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
+import javax.annotation.Resource;
 
 /**
  * &#064;@author: 谢玮杰
@@ -15,7 +17,10 @@ import javax.sql.DataSource;
  * &#064;@create: 2025-08-03 10:18
  **/
 @Service
-public class SqlServerDataSourceService implements DynamicDataSourceService<SqlServerConnectionEntity> {
+public class SqlServerDataSourceService implements DynamicDataSourceService<SqlServerConnectionEntity>{
+
+    @Resource
+    private ISqlserverDao sqlserverDao;
 
     @Override
     public HikariDataSource createDataSource(SqlServerConnectionEntity entity) {
@@ -29,6 +34,11 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
         hc.setPassword(entity.getPassword());
         return new HikariDataSource(hc);
     }
+
+//    @Override
+//    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
+//        return sqlserverDao.getSqlserverConnByUserAndDb(username, dbName);
+//    }
 
     @Override
     public ConnectionEntity.DbType getDbType() {

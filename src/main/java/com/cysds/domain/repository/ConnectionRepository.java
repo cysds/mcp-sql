@@ -1,9 +1,8 @@
 package com.cysds.domain.repository;
 
-import com.cysds.dao.IMysqlDao;
+import com.cysds.dao.ConnectionDao;
 import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.entity.ExecuteResult;
-import com.cysds.domain.entity.MysqlConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
@@ -13,9 +12,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import reactor.core.publisher.Flux;
 
 import javax.annotation.Resource;
 import java.io.BufferedReader;
@@ -28,7 +27,6 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -55,8 +53,16 @@ public class ConnectionRepository {
     @Resource
     private DynamicDataSourceRouter dsRouter;
 
-    @Resource
-    private IMysqlDao mysqlDao;
+    private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
+
+    @Autowired
+    public ConnectionRepository(List<ConnectionDao<?>> daos) {
+        // 把 List 转成 EnumMap（效率更高）
+        daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
+        for (ConnectionDao<?> dao : daos) {
+            daoMap.put(dao.getDbType(), dao);
+        }
+    }
 
     private HikariDataSource dataSource; //HikariDataSource
 
@@ -67,19 +73,14 @@ public class ConnectionRepository {
     // 新增：定时清理线程池
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-
-    public void buildConnection(ConnectionEntity connectionEntity) {
-        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
-        dataSource = dsRouter.createDataSource(connectionEntity);
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
-    }
-
-    public Connection connectByUserAndDb(String username, String databaseName) throws SQLException {
-        MysqlConnectionEntity entity =
-                mysqlDao.getMysqlConnByUserAndDb(username, databaseName);
+    public Connection connectByUserAndDb(ConnectionEntity.DbType type, String username, String databaseName) throws SQLException {
+        ConnectionDao<?> dao = daoMap.get(type);
+        if (dao == null) {
+            throw new IllegalArgumentException("unsupported db type: " + type);
+        }
+        ConnectionEntity entity = dao.getConnByUserAndDb(username, databaseName);
         if (entity == null) {
-            throw new IllegalArgumentException(
-                    String.format("未找到 username=%s, database=%s 的连接记录", username, databaseName));
+            throw new IllegalArgumentException(String.format("未找到 username=%s, database=%s 的连接记录", username, databaseName));
         }
         buildConnection(entity);
         return dsRouter.getConnection(entity);
@@ -152,6 +153,16 @@ public class ConnectionRepository {
 
     public byte[] getImageBytes(String id) {
         return imageStore.get(id);
+    }
+
+    /**
+     * 建立jdbc连接
+     * @param connectionEntity 连接实体
+     */
+    private void buildConnection(ConnectionEntity connectionEntity) {
+        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
+        dataSource = dsRouter.createDataSource(connectionEntity);
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
     /**

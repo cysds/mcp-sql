@@ -89,7 +89,7 @@
                     td.textContent = item[key] || '';
                     tr.appendChild(td);
                 });
-                tr.innerHTML += `<td><button onclick="connect('${item.username}','${item.database}')">连接</button></td>`;
+                tr.innerHTML += `<td><button onclick="connect('${item.type}','${item.username}','${item.database}')">连接</button></td>`;
                 document.querySelector(`#${tableId} tbody`).appendChild(tr);
             });
         } catch (err) {
@@ -98,8 +98,8 @@
         }
     }
 
-    async function connect(username, databaseName) {
-        const url = `${apiBase}/connect?username=${encodeURIComponent(username)}&databaseName=${encodeURIComponent(databaseName)}`;
+    async function connect(type, username, databaseName) {
+        const url = `${apiBase}/connect?type=${encodeURIComponent(type)}&username=${encodeURIComponent(username)}&databaseName=${encodeURIComponent(databaseName)}`;
         try {
             const res = await fetch(url);
             const text = await res.text();
@@ -110,7 +110,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        fetchAndRender('listMysql', 'mysql-table');
+        fetchAndRender('list', 'mysql-table');
         fetchAndRender('listOracle', 'oracle-table');
         fetchAndRender('listSqlserver', 'sqlserver-table');
     });

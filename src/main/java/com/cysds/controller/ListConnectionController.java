@@ -1,16 +1,14 @@
 package com.cysds.controller;
 
+import com.cysds.dao.ConnectionDao;
 import com.cysds.dao.IMysqlDao;
 import com.cysds.dao.IOracleDao;
 import com.cysds.dao.ISqlserverDao;
-import com.cysds.domain.entity.ExecuteResult;
-import com.cysds.domain.entity.MysqlConnectionEntity;
-import com.cysds.domain.entity.OracleConnectionEntity;
-import com.cysds.domain.entity.SqlServerConnectionEntity;
+import com.cysds.domain.entity.*;
 import com.cysds.domain.repository.ConnectionRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.CacheControl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +20,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.util.Base64;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * &#064;@author: 谢玮杰
@@ -35,14 +35,16 @@ import java.util.Map;
 @RequestMapping("/v1/api/db")
 public class ListConnectionController {
 
-    @Resource
-    private IMysqlDao mysqlDao;
+    private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
-    @Resource
-    private IOracleDao oracleDao;
-
-    @Resource
-    private ISqlserverDao sqlserverDao;
+    @Autowired
+    public ListConnectionController(List<ConnectionDao<?>> daos) {
+        // 把 List 转成 EnumMap（效率更高）
+        daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
+        for (ConnectionDao<?> dao : daos) {
+            daoMap.put(dao.getDbType(), dao);
+        }
+    }
 
     @Resource
     private ConnectionRepository connectionRepository;
@@ -50,26 +52,19 @@ public class ListConnectionController {
     @Resource
     private ObjectMapper objectMapper;
 
-    @GetMapping("/listMysql")
-    public List<MysqlConnectionEntity> listMysql() {
-        return mysqlDao.ListMysqlConn();
-    }
-
-    @GetMapping("/listOracle")
-    public List<OracleConnectionEntity> listOracle() {
-        return oracleDao.ListOracleConn();
-    }
-
-    @GetMapping("/listSqlserver")
-    public List<SqlServerConnectionEntity> listSqlserver() {
-        return sqlserverDao.ListSqlserverConn();
+    @GetMapping("/list")
+    public List<?> list() {
+        return daoMap.values().stream()
+                .flatMap(dao -> dao.getAllConn().stream())
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/connect")
     public ResponseEntity<String> connect(
+            @RequestParam ConnectionEntity.DbType type,
             @RequestParam String username,
             @RequestParam String databaseName) {
-        try (Connection conn = connectionRepository.connectByUserAndDb(username, databaseName)) {
+        try (Connection conn = connectionRepository.connectByUserAndDb(type, username, databaseName)) {
             if (conn.isValid(2)) {
                 return ResponseEntity.ok("连接成功！");
             } else {
@@ -96,14 +91,6 @@ public class ListConnectionController {
                 out.write(line1.getBytes());
                 out.flush();
 
-                // line 2: image URL
-//                String imageUrl = "/v1/api/db/execute/image/" + res.getImageId();
-//                String line2 = objectMapper.writeValueAsString(Map.of(
-//                        "type", "image",
-//                        "content", imageUrl
-//                )) + "\n";
-//                out.write(line2.getBytes());
-//                out.flush();
                 byte[] bytes = connectionRepository.getImageBytes(res.getImageId());
 
                 String imageContent;
@@ -113,7 +100,8 @@ public class ListConnectionController {
                 } else {
                     imageContent = null; // 或者空字符串，视客户端解析逻辑而定
                 }
-
+                assert imageContent != null;
+                // line 2: image
                 String line2 = objectMapper.writeValueAsString(Map.of(
                         "type", "image",
                         "content", imageContent
@@ -132,17 +120,5 @@ public class ListConnectionController {
                         outputStream.write(("{\"error\":\"" + ex.getMessage() + "\"}\n").getBytes());
                     });
         }
-    }
-
-    @GetMapping("/execute/image/{id}")
-    public ResponseEntity<byte[]> getImage(@PathVariable String id) {
-        byte[] bytes = connectionRepository.getImageBytes(id);
-        if (bytes == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_PNG)
-                .cacheControl(CacheControl.noCache())
-                .body(bytes);
     }
 }

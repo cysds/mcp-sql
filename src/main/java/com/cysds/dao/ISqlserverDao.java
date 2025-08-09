@@ -14,8 +14,10 @@ import java.util.List;
 @Mapper
 public interface ISqlserverDao {
 
-    void InsertSqlServerConn(SqlServerConnectionEntity sqlServerConnectionEntity);
+    void InsertSqlserverConn(SqlServerConnectionEntity sqlServerConnectionEntity);
 
     List<SqlServerConnectionEntity> ListSqlserverConn();
+
+    SqlServerConnectionEntity getSqlserverConnByUserAndDb(String username, String databaseName);
 
 }

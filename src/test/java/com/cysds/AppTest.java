@@ -10,8 +10,6 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
-import reactor.core.publisher.Flux;
-
 import javax.annotation.Resource;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +35,7 @@ public class AppTest {
         mysqlConnectionEntity.setUsername("root");
         mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
 
-        connectionRepository.buildConnection(mysqlConnectionEntity);
+//        connectionRepository.buildConnection(mysqlConnectionEntity);
 
         ExecuteResult executed = connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
 

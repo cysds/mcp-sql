@@ -18,4 +18,6 @@ public interface IOracleDao {
 
     List<OracleConnectionEntity> ListOracleConn();
 
+    OracleConnectionEntity getOracleConnByUserAndDb(String username, String service_name);
+
 }

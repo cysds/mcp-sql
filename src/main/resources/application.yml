@@ -15,10 +15,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   ai:
     ollama:
-      base-url: http://aeb561c1e27e4f6cb7be-deepseek-r1-llm-api.gcs-xy1a.jdcloud.com/
+      base-url: http://127.0.0.1:11434
       chat:
         options:
-          model: deepseek-r1:32b
+          model: deepseek-r1:8b
           temperature: 0.7
 
 mybatis:

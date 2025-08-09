@@ -1,10 +1,12 @@
 package com.cysds.domain.router;
 
 import com.cysds.domain.entity.ConnectionEntity;
-import com.cysds.domain.service.DynamicDataSourceService;
+import com.cysds.domain.service.connection.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import javax.annotation.Resource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
