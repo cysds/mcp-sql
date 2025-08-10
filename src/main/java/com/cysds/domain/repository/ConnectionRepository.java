@@ -156,10 +156,18 @@ public class ConnectionRepository {
     }
 
     /**
+     * 添加数据库连接
+     * @param connectionEntity 数据库连接对象
+     */
+    public void InsertConn(ConnectionEntity connectionEntity) {
+        daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
+    }
+
+    /**
      * 建立jdbc连接
      * @param connectionEntity 连接实体
      */
-    private void buildConnection(ConnectionEntity connectionEntity) {
+    public void buildConnection(ConnectionEntity connectionEntity) {
         // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
         dataSource = dsRouter.createDataSource(connectionEntity);
         this.jdbcTemplate = new JdbcTemplate(dataSource);

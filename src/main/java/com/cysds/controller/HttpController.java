@@ -24,18 +24,18 @@ import java.util.stream.Collectors;
 
 /**
  * &#064;@author: 谢玮杰
- * &#064;@description:
+ * &#064;@description: Http api 接口
  * &#064;@create: 2025-07-27 10:10
  **/
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/v1/api/db")
-public class ListConnectionController {
+public class HttpController {
 
     private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
     @Autowired
-    public ListConnectionController(List<ConnectionDao<?>> daos) {
+    public HttpController(List<ConnectionDao<?>> daos) {
         // 把 List 转成 EnumMap（效率更高）
         daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
         for (ConnectionDao<?> dao : daos) {

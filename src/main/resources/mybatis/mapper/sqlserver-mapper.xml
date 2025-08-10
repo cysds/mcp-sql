@@ -16,7 +16,7 @@
     </resultMap>
 
     <!-- 插入，生成主键后回填到 entity.id -->
-    <insert id="InsertSqlServerConn"
+    <insert id="InsertSqlserverConn"
             parameterType="com.cysds.domain.entity.SqlServerConnectionEntity"
             useGeneratedKeys="true"
             keyProperty="id">
