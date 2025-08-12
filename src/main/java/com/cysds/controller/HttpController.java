@@ -34,20 +34,20 @@ public class HttpController {
 
     private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
-    @Autowired
-    public HttpController(List<ConnectionDao<?>> daos) {
-        // 把 List 转成 EnumMap（效率更高）
-        daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
-        for (ConnectionDao<?> dao : daos) {
-            daoMap.put(dao.getDbType(), dao);
-        }
-    }
-
     @Resource
     private ConnectionRepository connectionRepository;
 
     @Resource
     private ObjectMapper objectMapper;
+
+    @Autowired
+    public HttpController(List<ConnectionDao<?>> daos) {
+        // 把 List 转成 EnumMap
+        daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
+        for (ConnectionDao<?> dao : daos) {
+            daoMap.put(dao.getDbType(), dao);
+        }
+    }
 
     @GetMapping("/list")
     public List<?> list() {
@@ -72,6 +72,11 @@ public class HttpController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("连接时发生异常: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/insert")
+    public void insert(@RequestBody ConnectionEntity connectionEntity) {
+        connectionRepository.InsertConn(connectionEntity);
     }
 
     @PostMapping(value = "/execute", produces = "application/x-ndjson")

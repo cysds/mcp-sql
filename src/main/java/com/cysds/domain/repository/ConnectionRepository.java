@@ -57,7 +57,6 @@ public class ConnectionRepository {
 
     @Autowired
     public ConnectionRepository(List<ConnectionDao<?>> daos) {
-        // 把 List 转成 EnumMap（效率更高）
         daoMap = new EnumMap<>(ConnectionEntity.DbType.class);
         for (ConnectionDao<?> dao : daos) {
             daoMap.put(dao.getDbType(), dao);
@@ -68,9 +67,9 @@ public class ConnectionRepository {
 
     private JdbcTemplate jdbcTemplate;
 
-    // 新增：图片内存缓存（id -> bytes）
+    // 图片内存缓存（id -> bytes）
     private final Map<String, byte[]> imageStore = new ConcurrentHashMap<>();
-    // 新增：定时清理线程池
+    // 定时清理线程池
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public Connection connectByUserAndDb(ConnectionEntity.DbType type, String username, String databaseName) throws SQLException {
@@ -161,6 +160,7 @@ public class ConnectionRepository {
      */
     public void InsertConn(ConnectionEntity connectionEntity) {
         daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
+        log.info("添加数据库连接成功");
     }
 
     /**

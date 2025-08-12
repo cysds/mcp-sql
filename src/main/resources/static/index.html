@@ -1,119 +1,417 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数据库连接测试</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DB 管理面板</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        button { padding: 6px 12px; border: none; background-color: #28a745; color: white; cursor: pointer; border-radius: 4px; }
-        button:hover { background-color: #218838; }
-        .debug { margin-top: 20px; color: #555; font-size: 0.9em; white-space: pre-wrap; }
+        :root {
+            --bg: #0f1113;
+            --panel: #161819;
+            --muted: #9aa0a6;
+            --accent: #6c9ef8;
+            --card: #1b1d1f;
+            --border: #252728;
+            --success: #35b57f;
+        }
+        html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:#e6eef8;background:linear-gradient(180deg,#0b0c0d, #0f1113);}
+        .wrap{display:grid;grid-template-columns:minmax(320px,600px) 1fr;gap:18px;height:100vh;padding:18px;}
+        .sidebar{background:var(--panel);border-radius:10px;padding:12px;overflow:auto;border:1px solid var(--border)}
+        .main{padding:18px;border-radius:10px;background:linear-gradient(180deg,#0f1316,#0b0d0f);border:1px solid var(--border);overflow:auto}
+        h2{margin:6px 0 12px 0;color:#fff}
+        label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+        input,select,button,textarea{background:var(--card);border:1px solid var(--border);color:#eaf3ff;padding:8px;border-radius:6px;width:100%;box-sizing:border-box}
+        .row{display:flex;gap:10px}
+        .row > *{flex:1}
+        .btn{background:linear-gradient(90deg,var(--accent),#4aa0ff);border:0;color:#021225;padding:10px 12px;font-weight:600;cursor:pointer}
+        .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
+        table{width:100%;border-collapse:collapse;margin-top:8px;color:#eaf3ff}
+        th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:13px;text-align:left}
+        thead th{color:var(--muted);font-size:12px}
+        .small{font-size:12px;color:var(--muted)}
+        pre.log{height:120px;overflow:auto;background:#0b0c0d;padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--muted)}
+        .card{background:var(--panel);padding:12px;border-radius:8px;margin-bottom:12px;border:1px solid var(--border)}
+        .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px}
+        img.preview{max-width:100%;border-radius:6px;margin-top:8px;border:1px solid var(--border)}
+        footer.small{color:var(--muted);font-size:12px;margin-top:10px}
     </style>
 </head>
 <body>
-<h1>数据库连接测试</h1>
+<div class="wrap">
+    <aside class="sidebar">
+        <h2>连接列表</h2>
+        <div class="card">
+            <div class="flex-between">
+                <div class="small">已保存连接</div>
+                <div>
+                    <button id="refreshList" class="btn-ghost">刷新</button>
+                </div>
+            </div>
+            <table id="conn-table">
+                <thead>
+                <tr><th>类型</th><th>用户</th><th>host</th><th>port</th><th>db/service</th><th>操作</th></tr>
+                </thead>
+                <tbody><tr><td colspan="6" class="small">加载中...</td></tr></tbody>
+            </table>
+        </div>
 
-<section id="mysql-section">
-    <h2>MySQL 连接列表</h2>
-    <table id="mysql-table">
-        <thead>
-        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
-        </thead>
-        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
-    </table>
-</section>
+        <h2>添加连接</h2>
+        <div class="card">
+            <label>类型</label>
+            <select id="type">
+                <option value="MYSQL">MYSQL</option>
+                <option value="ORACLE">ORACLE</option>
+                <option value="SQLSERVER">SQLSERVER</option>
+            </select>
 
-<section id="oracle-section">
-    <h2>Oracle 连接列表</h2>
-    <table id="oracle-table">
-        <thead>
-        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
-        </thead>
-        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
-    </table>
-</section>
+            <label>用户名</label>
+            <input id="username" placeholder="数据库用户名" />
 
-<section id="sqlserver-section">
-    <h2>SqlServer 连接列表</h2>
-    <table id="sqlserver-table">
-        <thead>
-        <tr><th>类型</th><th>用户名</th><th>主机</th><th>端口</th><th>数据库</th><th>操作</th></tr>
-        </thead>
-        <tbody><tr><td colspan="6">加载中...</td></tr></tbody>
-    </table>
-</section>
+            <label>密码</label>
+            <input id="password" placeholder="数据库密码" type="password" />
 
-<div class="debug" id="debug-log"></div>
+            <label>Host</label>
+            <input id="host" placeholder="例：127.0.0.1" />
+
+            <div class="row">
+                <div>
+                    <label>Port（为空使用默认）</label>
+                    <input id="port" placeholder="3306 / 1521 / 1433" />
+                </div>
+                <div id="db-or-service-wrapper">
+                    <label id="db-or-service-label">Database</label>
+                    <input id="database" placeholder="数据库名 或 Oracle serviceName" />
+                </div>
+            </div>
+
+            <div style="margin-top:10px;display:flex;gap:10px">
+                <button id="insertBtn" class="btn">添加连接</button>
+                <button id="clearInsert" class="btn-ghost">重置</button>
+            </div>
+
+            <div style="margin-top:10px">
+                <pre id="insert-log" class="log"></pre>
+            </div>
+        </div>
+
+        <footer class="small">API Base: <code id="apiBase">http://localhost:8080/v1/api/db</code></footer>
+    </aside>
+
+    <main class="main">
+        <h2>执行 SQL（流式返回）</h2>
+        <div class="card">
+            <label>请求 Base URL（留空使用当前页面 origin）</label>
+            <input id="baseUrl" placeholder="http://localhost:8080" />
+
+            <label>请求 Content-Type</label>
+            <select id="ctype">
+                <option value="application/json">application/json</option>
+                <option value="text/plain">text/plain</option>
+                <option value="application/x-ndjson">application/x-ndjson</option>
+            </select>
+
+            <label>在此输入请求</label>
+            <textarea id="message" rows="5" placeholder='{请输入查询内容}'></textarea>
+
+            <div style="margin-top:10px;display:flex;gap:10px">
+                <button id="btn" class="btn">发送请求</button>
+                <button id="clear" class="btn-ghost">清空</button>
+            </div>
+
+            <div style="margin-top:12px">
+                <div class="small">返回 SQL / Markdown</div>
+                <pre id="sql" class="log">(尚无内容)</pre>
+                <div class="small" style="margin-top:8px">返回图片</div>
+                <img id="img" class="preview" alt="图片预览" src="" />
+                <div class="small" style="margin-top:8px">流/调试日志</div>
+                <pre id="log" class="log"></pre>
+            </div>
+        </div>
+    </main>
+</div>
 
 <script>
-    // 固定 API 基础路径，无需动态计算
+    // 基础配置
     const apiBase = 'http://localhost:8080/v1/api/db';
-    const logEl = document.getElementById('debug-log');
+    const insertLog = document.getElementById('insert-log');
+    const connTableBody = document.querySelector('#conn-table tbody');
 
-    function log(msg) {
-        console.log(msg);
-        logEl.textContent += msg + '\n';
+    function logInsert(msg) {
+        insertLog.textContent += msg + '\n';
+        insertLog.scrollTop = insertLog.scrollHeight;
     }
 
-    async function fetchAndRender(endpoint, tableId) {
-        log(`请求 ${endpoint} -> ${apiBase}/${endpoint}`);
+    // 列表 & 渲染
+    async function fetchAndRender() {
+        connTableBody.innerHTML = '<tr><td colspan="6" class="small">加载中...</td></tr>';
         try {
-            const res = await fetch(`${apiBase}/${endpoint}`);
-            log(`状态: ${res.status}`);
-            const tbody = document.querySelector(`#${tableId} tbody`);
-            tbody.innerHTML = '';
-
+            const res = await fetch(`${apiBase}/list`);
             if (!res.ok) {
-                let errMsg = await res.text();
-                log(`错误响应: ${errMsg}`);
-                tbody.innerHTML = `<tr><td colspan=6>Error ${res.status}: ${errMsg}</td></tr>`;
+                const t = await res.text();
+                connTableBody.innerHTML = `<tr><td colspan="6">Error ${res.status}: ${t}</td></tr>`;
                 return;
             }
-
             const list = await res.json();
-            log(`${endpoint} 返回: ${JSON.stringify(list)}`);
-
             if (!Array.isArray(list) || list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan=6>无连接记录</td></tr>`;
+                connTableBody.innerHTML = `<tr><td colspan="6" class="small">无连接记录</td></tr>`;
                 return;
             }
 
+            connTableBody.innerHTML = '';
             list.forEach(item => {
                 const tr = document.createElement('tr');
-                ['type','username','host','port','database'].forEach(key => {
-                    const td = document.createElement('td');
-                    td.textContent = item[key] || '';
-                    tr.appendChild(td);
-                });
-                tr.innerHTML += `<td><button onclick="connect('${item.type}','${item.username}','${item.database}')">连接</button></td>`;
-                document.querySelector(`#${tableId} tbody`).appendChild(tr);
+                const type = item.type || item.dbType || '';
+                const username = item.username || '';
+                const host = item.host || '';
+                const port = item.port || '';
+                const dbOrService = item.database || item.serviceName || '';
+                tr.innerHTML = `
+            <td>${type}</td>
+            <td>${username}</td>
+            <td>${host}</td>
+            <td>${port}</td>
+            <td>${dbOrService}</td>
+            <td>
+              <button class="btn-ghost" onclick="connectFromRow('${encodeURIComponent(type)}','${encodeURIComponent(username)}','${encodeURIComponent(dbOrService)}')">连接</button>
+            </td>
+          `;
+                connTableBody.appendChild(tr);
             });
-        } catch (err) {
-            log(`Fetch error for ${endpoint}: ${err}`);
-            document.querySelector(`#${tableId} tbody`).innerHTML = `<tr><td colspan=6>请求异常: ${err}</td></tr>`;
+        } catch (e) {
+            connTableBody.innerHTML = `<tr><td colspan="6">请求异常: ${e}</td></tr>`;
         }
     }
 
-    async function connect(type, username, databaseName) {
-        const url = `${apiBase}/connect?type=${encodeURIComponent(type)}&username=${encodeURIComponent(username)}&databaseName=${encodeURIComponent(databaseName)}`;
+    // connect: 调用 /connect 接口
+    async function connectFromRow(type, username, db) {
         try {
+            const t = decodeURIComponent(type);
+            const u = decodeURIComponent(username);
+            const dbn = decodeURIComponent(db);
+            const url = `${apiBase}/connect?type=${encodeURIComponent(t)}&username=${encodeURIComponent(u)}&databaseName=${encodeURIComponent(dbn)}`;
             const res = await fetch(url);
             const text = await res.text();
             alert(text);
         } catch (e) {
-            alert('请求出错：' + e);
+            alert('连接请求出错：' + e);
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        fetchAndRender('list', 'mysql-table');
-        fetchAndRender('listOracle', 'oracle-table');
-        fetchAndRender('listSqlserver', 'sqlserver-table');
+    // Insert - 根据类型组装对象并 POST
+    document.getElementById('insertBtn').addEventListener('click', async () => {
+        insertLog.textContent = '';
+        const type = document.getElementById('type').value;
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const host = document.getElementById('host').value.trim() || '127.0.0.1';
+        let portRaw = document.getElementById('port').value.trim();
+        let dbOrService = document.getElementById('database').value.trim();
+
+        // 默认端口 / 默认 serviceName
+        const defaults = { MYSQL: 3306, ORACLE: 1521, SQLSERVER: 1433 };
+        if (!portRaw) portRaw = String(defaults[type]);
+        if (type === 'ORACLE' && !dbOrService) dbOrService = 'orcl';
+
+        const port = parseInt(portRaw, 10) || defaults[type];
+
+        // 组装对象
+        let payload = {
+            type: type,
+            username: username,
+            password: password
+        };
+
+        if (type === 'MYSQL') {
+            payload.host = host;
+            payload.port = port;
+            payload.database = dbOrService || '';
+        } else if (type === 'ORACLE') {
+            payload.host = host;
+            payload.port = port;
+            payload.serviceName = dbOrService || 'orcl';
+        } else if (type === 'SQLSERVER') {
+            payload.host = host;
+            payload.port = port;
+            payload.database = dbOrService || '';
+        }
+
+        logInsert('准备发送：' + JSON.stringify(payload, null, 2));
+        try {
+            const res = await fetch(`${apiBase}/insert`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const text = await res.text();
+            if (res.ok) {
+                logInsert('添加成功，服务器返回: ' + text);
+                await fetchAndRender();
+            } else {
+                logInsert('添加失败: ' + res.status + ' ' + text);
+                alert('添加失败：' + text);
+            }
+        } catch (e) {
+            logInsert('请求异常：' + e);
+            alert('请求异常：' + e);
+        }
     });
+
+    document.getElementById('clearInsert').addEventListener('click', () => {
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('host').value = '';
+        document.getElementById('port').value = '';
+        document.getElementById('database').value = '';
+        insertLog.textContent = '';
+    });
+
+    // 根据 type 动态更新“数据库/服务名”标签
+    document.getElementById('type').addEventListener('change', (e) => {
+        const t = e.target.value;
+        const label = document.getElementById('db-or-service-label');
+        const input = document.getElementById('database');
+        if (t === 'ORACLE') {
+            label.textContent = 'Service Name (Oracle)';
+            input.placeholder = 'orcl (若不填将使用默认)';
+        } else {
+            label.textContent = 'Database';
+            input.placeholder = '数据库名';
+        }
+    });
+
+    // Execute (你提供的流式读取代码，略做适配)
+    (function setupExecute(){
+        const btn = document.getElementById('btn');
+        const clearBtn = document.getElementById('clear');
+        const msgEl = document.getElementById('message');
+        const sqlEl = document.getElementById('sql');
+        const imgEl = document.getElementById('img');
+        const logEl = document.getElementById('log');
+        const ctypeEl = document.getElementById('ctype');
+        const baseUrlInput = document.getElementById('baseUrl');
+
+        function log(...args){
+            const t = new Date().toLocaleTimeString();
+            logEl.textContent += `[${t}] ` + args.join(' ') + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        clearBtn.onclick = () => {
+            sqlEl.textContent = '(尚无内容)';
+            imgEl.src = '';
+            logEl.textContent = '';
+        };
+
+        btn.onclick = async () => {
+            sqlEl.textContent = '(等待响应...)';
+            imgEl.src = '';
+            logEl.textContent = '';
+
+            const body = msgEl.value;
+            const contentType = ctypeEl.value;
+            const endpoint = `${apiBase}/execute`;
+
+
+            log('开始请求', endpoint);
+            try{
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': contentType, 'Accept': 'application/x-ndjson' },
+                    body: body
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    log('HTTP 错误：', res.status, text);
+                    sqlEl.textContent = '请求返回错误：' + res.status;
+                    return;
+                }
+
+                if (!res.body) {
+                    log('响应没有 body（非流式）。尝试按文本解析');
+                    const text = await res.text();
+                    log('响应文本：', text);
+                    sqlEl.textContent = text;
+                    return;
+                }
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, { stream: true });
+
+                    let idx;
+                    while ((idx = buf.indexOf('\n')) >= 0) {
+                        const line = buf.slice(0, idx).trim();
+                        buf = buf.slice(idx + 1);
+                        if (!line) continue;
+                        try{
+                            const msg = JSON.parse(line);
+                            log('收到消息：', JSON.stringify(msg));
+
+                            if (msg.type === 'markdown') {
+                                sqlEl.textContent = msg.content;
+                            } else if (msg.type === 'image') {
+                                const content = msg.content;
+                                if (!content) {
+                                    log('图片 content 为空');
+                                    imgEl.src = '';
+                                } else if (content.startsWith('data:')) {
+                                    imgEl.src = content;
+                                } else if (content.startsWith('http') || content.startsWith('https')) {
+                                    imgEl.src = content;
+                                } else if (content.startsWith('/')) {
+                                    imgEl.src = apiBase.replace(/\/v1\/api\/db$/, '') + content;
+                                } else {
+                                    imgEl.src = apiBase + '/execute/image/' + content;
+                                }
+                            } else {
+                                log('未知消息类型：', msg.type);
+                            }
+
+                        } catch (err) {
+                            log('解析行失败：', err, 'line:', line);
+                        }
+                    }
+                }
+
+                // 读取剩余缓冲（如果最后一行没有换行）
+                if (buf.trim()) {
+                    try{
+                        const msg = JSON.parse(buf.trim());
+                        log('收到尾部消息：', JSON.stringify(msg));
+                        if (msg.type === 'markdown') sqlEl.textContent = msg.content;
+                        if (msg.type === 'image') {
+                            const content = msg.content || '';
+                            if (content.startsWith('data:')) imgEl.src = content;
+                            else imgEl.src = base.replace(/\/$/, '') + content;
+                        }
+                    }catch(e){ log('尾部解析失败', e); }
+                }
+
+                log('流读取结束');
+            } catch (err) {
+                log('请求或流读取发生异常：', err);
+                sqlEl.textContent = '请求失败：' + err;
+            }
+        };
+    })();
+
+    // 初始化
+    document.getElementById('refreshList').addEventListener('click', fetchAndRender);
+    document.addEventListener('DOMContentLoaded', () => {
+        // 如果页面不是从同一域名服务 API，可以把 apiBase 的文本改成正确地址
+        fetchAndRender();
+        // 触发 type 的初始显示
+        document.getElementById('type').dispatchEvent(new Event('change'));
+    });
+
+    // 暴露 connectFromRow 到全局（供 table 的 onclick 使用）
+    window.connectFromRow = connectFromRow;
 </script>
 </body>
 </html>
