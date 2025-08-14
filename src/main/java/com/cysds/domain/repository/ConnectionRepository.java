@@ -22,10 +22,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,6 +112,7 @@ public class ConnectionRepository {
         String content = sqlChatResponse.getResult().getOutput().getText();
         String sql = extractText("sql", content);
         assert sql != null;
+        sql = sql.replaceAll(";\\s*$", "");
         List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
 
         String jsonData = new ObjectMapper().writeValueAsString(dbResults);
@@ -254,93 +252,215 @@ public class ConnectionRepository {
         }
         return null;
     }
+
     /**
      * 获取当前数据库中所有表及其字段结构，并拼成一个字符串返回
      *
      * @return 表结构描述的 String
      */
-    private String getAllTablesStructureAsString() {
+    public String getAllTablesStructureAsString() {
         StringBuilder sb = new StringBuilder();
 
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
-            String catalog = conn.getCatalog(); // 当前数据库名
+            String product = meta.getDatabaseProductName() == null ? "" :
+                    meta.getDatabaseProductName().toLowerCase(java.util.Locale.ROOT);
 
-            // 遍历所有用户表
-            try (ResultSet tables = meta.getTables(catalog, null, "%", new String[]{"TABLE"})) {
+            String catalogForMeta = null;
+            String schemaForMeta = null;
+
+            // 确定 catalog / schema 的使用方式（针对不同 DB）
+            if (product.contains("mysql")) {
+                catalogForMeta = conn.getCatalog();
+                schemaForMeta = null;
+            } else if (product.contains("oracle")) {
+                catalogForMeta = null;
+                try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
+                if (schemaForMeta == null || schemaForMeta.isBlank()) {
+                    schemaForMeta = meta.getUserName();
+                }
+                if (schemaForMeta != null) schemaForMeta = schemaForMeta.toUpperCase(java.util.Locale.ROOT);
+            } else if (product.contains("microsoft") || product.contains("sql server")) {
+                catalogForMeta = conn.getCatalog(); // database name
+                try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
+                // 如果 schema 为空，允许为 null（JDBC 会匹配所有）
+                if (schemaForMeta != null && schemaForMeta.isBlank()) schemaForMeta = null;
+            } else {
+                // 默认策略
+                catalogForMeta = conn.getCatalog();
+                try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
+            }
+
+            // 用于 Oracle 的注释备份查询（如果需要）
+            final boolean isOracle = product.contains("oracle");
+
+            try (ResultSet tables = meta.getTables(catalogForMeta, schemaForMeta, "%", new String[]{"TABLE"})) {
                 while (tables.next()) {
                     String tableName = tables.getString("TABLE_NAME");
-                    // 先获取本表的主键列名集合
-                    Set<String> pkColumns = new HashSet<>();
-                    try (ResultSet pks = meta.getPrimaryKeys(catalog, null, tableName)) {
+                    if (tableName == null) continue;
+
+                    // Oracle 下表名通常以大写存储
+                    String tableNameForQuery = isOracle ? tableName.toUpperCase(java.util.Locale.ROOT) : tableName;
+
+                    // 取主键（注意传 schema）
+                    List<String> pkList = new ArrayList<>();
+                    try (ResultSet pks = meta.getPrimaryKeys(catalogForMeta, schemaForMeta, tableName)) {
                         while (pks.next()) {
-                            pkColumns.add(pks.getString("COLUMN_NAME"));
+                            String col = pks.getString("COLUMN_NAME");
+                            if (col != null) pkList.add(col);
                         }
                     }
 
-                    // 表名行
-                    sb.append("table ")
-                            .append(catalog).append('.').append(tableName)
-                            .append('\n')
-                            .append("(\n");
+                    // Oracle：预取列注释与表注释（当 REMARKS 为空时回退）
+                    Map<String, String> colComments = new HashMap<>();
+                    String tableComment = null;
+                    if (isOracle) {
+                        // 优先使用 USER_*（权限简单），若失败再用 ALL_*
+                        String colSqlUser = "SELECT COLUMN_NAME, COMMENTS FROM USER_COL_COMMENTS WHERE TABLE_NAME = ?";
+                        String colSqlAll  = "SELECT COLUMN_NAME, COMMENTS FROM ALL_COL_COMMENTS WHERE OWNER = ? AND TABLE_NAME = ?";
+                        String tabSqlUser = "SELECT COMMENTS FROM USER_TAB_COMMENTS WHERE TABLE_NAME = ?";
+                        String tabSqlAll  = "SELECT COMMENTS FROM ALL_TAB_COMMENTS WHERE OWNER = ? AND TABLE_NAME = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(colSqlUser)) {
+                            ps.setString(1, tableNameForQuery);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) {
+                                    colComments.put(rs.getString("COLUMN_NAME"), rs.getString("COMMENTS"));
+                                }
+                            }
+                        } catch (SQLException eUser) {
+                            // 尝试 ALL_COL_COMMENTS
+                            try (PreparedStatement ps2 = conn.prepareStatement(colSqlAll)) {
+                                ps2.setString(1, schemaForMeta);
+                                ps2.setString(2, tableNameForQuery);
+                                try (ResultSet rs2 = ps2.executeQuery()) {
+                                    while (rs2.next()) {
+                                        colComments.put(rs2.getString("COLUMN_NAME"), rs2.getString("COMMENTS"));
+                                    }
+                                }
+                            } catch (SQLException ignored) { /* 如果也失败，就不取注释 */ }
+                        }
 
-                    // 遍历列信息
+                        // 表注释
+                        try (PreparedStatement ps = conn.prepareStatement(tabSqlUser)) {
+                            ps.setString(1, tableNameForQuery);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (rs.next()) tableComment = rs.getString("COMMENTS");
+                            }
+                        } catch (SQLException eUser) {
+                            try (PreparedStatement ps2 = conn.prepareStatement(tabSqlAll)) {
+                                ps2.setString(1, schemaForMeta);
+                                ps2.setString(2, tableNameForQuery);
+                                try (ResultSet rs2 = ps2.executeQuery()) {
+                                    if (rs2.next()) tableComment = rs2.getString("COMMENTS");
+                                }
+                            } catch (SQLException ignored) { /* ignore */ }
+                        }
+                    }
+
+                    // 表头
+                    sb.append("table ");
+                    if (catalogForMeta != null && !catalogForMeta.isBlank()) {
+                        sb.append(catalogForMeta).append('.');
+                    }
+                    if (schemaForMeta != null && !schemaForMeta.isBlank() && !product.contains("mysql")) {
+                        sb.append(schemaForMeta).append('.');
+                    }
+                    sb.append(tableName).append('\n');
+                    if (tableComment != null && !tableComment.isBlank()) {
+                        sb.append("/* ").append(tableComment.replace("*/", "*\\/")).append(" */\n");
+                    }
+                    sb.append("(\n");
+
+                    // 遍历列
                     List<String> columnLines = new ArrayList<>();
-                    try (ResultSet columns = meta.getColumns(catalog, null, tableName, "%")) {
+                    try (ResultSet columns = meta.getColumns(catalogForMeta, schemaForMeta, tableName, "%")) {
                         while (columns.next()) {
                             String colName = columns.getString("COLUMN_NAME");
-                            String colType = columns.getString("TYPE_NAME");
-                            int colSize = columns.getInt("COLUMN_SIZE");
-                            boolean nullable = columns.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+                            String typeName = columns.getString("TYPE_NAME");
+                            int colSize = columns.getInt("COLUMN_SIZE"); // precision or length
+                            int decimalDigits = columns.getInt("DECIMAL_DIGITS");
+                            boolean nullable = (columns.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                             String remarks = columns.getString("REMARKS");
-
-                            StringBuilder line = new StringBuilder("    ");
-                            // 列名
-                            line.append(colName).append(' ');
-                            // 类型 + 长度
-                            line.append(colType);
-                            if (colType.matches("(?i)char|varchar|binary|varbinary")) {
-                                line.append('(').append(colSize).append(')');
+                            if ((remarks == null || remarks.isBlank()) && isOracle) {
+                                // Oracle 注释 key 可能是大写
+                                String cmt = colComments.get(colName);
+                                if (cmt == null) cmt = colComments.get(colName == null ? null : colName.toUpperCase(java.util.Locale.ROOT));
+                                remarks = cmt;
                             }
+
+                            String isAutoInc = null;
+                            try { isAutoInc = columns.getString("IS_AUTOINCREMENT"); } catch (Exception ignored) {}
+
+                            // 构建类型显示
+                            StringBuilder typeBuilder = new StringBuilder(typeName == null ? "" : typeName);
+                            String lower = typeName == null ? "" : typeName.toLowerCase(java.util.Locale.ROOT);
+                            if (lower.contains("char") || lower.contains("binary") || lower.contains("blob") ||
+                                    lower.contains("varchar") || lower.contains("nvarchar")) {
+                                if (colSize > 0) typeBuilder.append('(').append(colSize).append(')');
+                            } else if (lower.contains("number") || lower.contains("numeric") || lower.contains("decimal")) {
+                                // NUMBER/DECIMAL：precision(scale)
+                                if (colSize > 0) {
+                                    typeBuilder.append('(').append(colSize);
+                                    if (decimalDigits > 0) {
+                                        typeBuilder.append(',').append(decimalDigits);
+                                    }
+                                    typeBuilder.append(')');
+                                }
+                            } else {
+                                // 对于其它类型，如果 JDBC 给了 size 且类型常见需要显示，也可追加
+                                // 一般保持原样
+                            }
+
+                            StringBuilder line = new StringBuilder();
+                            line.append("    ").append(colName).append(' ').append(typeBuilder);
+
                             // 默认值
                             String def = columns.getString("COLUMN_DEF");
                             if (def != null && !def.trim().isEmpty()) {
                                 line.append(" default ").append(def.trim());
                             }
-                            // 非空约束
+                            // 非空
                             if (!nullable) {
                                 line.append(" not null");
                             }
-                            // comment
+                            // 自增标记（若有）
+                            if (isAutoInc != null && isAutoInc.equalsIgnoreCase("YES")) {
+                                line.append(" identity");
+                            }
+                            // 注释
                             if (remarks != null && !remarks.isBlank()) {
                                 line.append(" comment '").append(remarks.replace("'", "''")).append("'");
                             }
-                            // inline primary key
-                            if (pkColumns.contains(colName)) {
-                                line.append("\n        primary key");
-                            }
+
                             columnLines.add(line.toString());
                         }
                     }
 
-                    // 将列定义按逗号分隔并加入到 sb
+                    // 输出列并处理主键（将主键作为最后一行）
                     for (int i = 0; i < columnLines.size(); i++) {
                         sb.append(columnLines.get(i));
-                        // 最后一列不加逗号
-                        if (i < columnLines.size() - 1) {
-                            sb.append(',');
+                        if (i < columnLines.size() - 1) sb.append(",\n"); else sb.append("\n");
+                    }
+
+                    // 主键输出（如果存在）
+                    if (!pkList.isEmpty()) {
+                        sb.append(",\n    primary key (");
+                        for (int i = 0; i < pkList.size(); i++) {
+                            sb.append(pkList.get(i));
+                            if (i < pkList.size() - 1) sb.append(", ");
                         }
-                        sb.append('\n');
+                        sb.append(")\n");
                     }
 
                     sb.append(")\n\n");
-                }
+                } // end tables loop
             }
 
         } catch (SQLException e) {
-            sb.append("Error retrieving table metadata: ").append(e.getMessage());
+            sb.append("Error retrieving table metadata: ").append(e.getMessage()).append('\n');
         }
 
         return sb.toString();
     }
+
 }

@@ -91,6 +91,13 @@
             <artifactId>ojdbc8</artifactId>
         </dependency>
 
+        <!-- NLS 国际化支持包 -->
+        <dependency>
+            <groupId>com.oracle.database.nls</groupId>
+            <artifactId>orai18n</artifactId>
+            <version>21.9.0.0</version>
+        </dependency>
+
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

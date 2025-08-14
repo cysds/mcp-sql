@@ -53,9 +53,9 @@
             host,
             port,
             service_name
-        FROM tb_mysql_conn
+        FROM tb_oracle_conn
         WHERE username = #{username}
-          AND database_name = #{serviceName}
+          AND service_name = #{serviceName}
     </select>
 
 </mapper>
