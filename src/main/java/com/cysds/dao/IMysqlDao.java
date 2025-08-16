@@ -13,7 +13,7 @@ import java.util.List;
 @Mapper
 public interface IMysqlDao {
 
-    void InsertMysqlConn(MysqlConnectionEntity mysqlConnectionEntity);
+    int InsertMysqlConn(MysqlConnectionEntity mysqlConnectionEntity) throws Exception;
 
     List<MysqlConnectionEntity> ListMysqlConn();
 

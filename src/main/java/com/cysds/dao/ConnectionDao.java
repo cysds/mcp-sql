@@ -13,7 +13,7 @@ import java.util.List;
 public interface ConnectionDao<T extends ConnectionEntity> {
     ConnectionEntity getConnByUserAndDb(String username, String dbName);
     ConnectionEntity.DbType getDbType();
-    void InsertConn(ConnectionEntity connectionEntity);
+    int InsertConn(ConnectionEntity connectionEntity);
 
     List<T> getAllConn();
 }

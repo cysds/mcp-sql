@@ -14,7 +14,7 @@ import java.util.List;
 @Mapper
 public interface IOracleDao {
 
-    void InsertOracleConn(OracleConnectionEntity oracleConnectionEntity);
+    int InsertOracleConn(OracleConnectionEntity oracleConnectionEntity) throws Exception;
 
     List<OracleConnectionEntity> ListOracleConn();
 

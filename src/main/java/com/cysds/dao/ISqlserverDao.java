@@ -14,7 +14,7 @@ import java.util.List;
 @Mapper
 public interface ISqlserverDao {
 
-    void InsertSqlserverConn(SqlServerConnectionEntity sqlServerConnectionEntity);
+    int InsertSqlserverConn(SqlServerConnectionEntity sqlServerConnectionEntity) throws Exception;
 
     List<SqlServerConnectionEntity> ListSqlserverConn();
 

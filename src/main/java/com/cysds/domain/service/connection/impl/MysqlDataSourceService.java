@@ -8,6 +8,8 @@ import com.cysds.domain.service.connection.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.annotation.Resource;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,6 +19,7 @@ import java.util.List;
  * &#064;@description: mysql数据源
  * &#064;@create: 2025-08-03 10:14
  **/
+@Slf4j
 @Service
 public class MysqlDataSourceService implements DynamicDataSourceService<MysqlConnectionEntity>,ConnectionDao<MysqlConnectionEntity>{
 
@@ -43,8 +46,15 @@ public class MysqlDataSourceService implements DynamicDataSourceService<MysqlCon
     }
 
     @Override
-    public void InsertConn(ConnectionEntity connectionEntity) {
-        mysqlMapper.InsertMysqlConn((MysqlConnectionEntity) connectionEntity);
+    public int InsertConn(ConnectionEntity connectionEntity) {
+        int rows = 0;
+        try {
+            rows = mysqlMapper.InsertMysqlConn((MysqlConnectionEntity) connectionEntity);
+        } catch (Exception e) {
+            throw new RuntimeException("添加MySQL连接失败", e);
+        }
+        log.info("添加数据库连接成功,connectionEntity={}", connectionEntity);
+        return rows;
     }
 
     @Override

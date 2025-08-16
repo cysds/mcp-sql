@@ -13,12 +13,18 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -50,6 +56,10 @@ public class ConnectionRepository {
     @Resource
     private DynamicDataSourceRouter dsRouter;
 
+    @Resource
+    private ObjectMapper objectMapper;
+
+
     private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
     @Autowired
@@ -69,8 +79,11 @@ public class ConnectionRepository {
     // 定时清理线程池
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
+    String dbType = "";
+
     public Connection connectByUserAndDb(ConnectionEntity.DbType type, String username, String databaseName) throws SQLException {
         ConnectionDao<?> dao = daoMap.get(type);
+        dbType = type.toString();
         if (dao == null) {
             throw new IllegalArgumentException("unsupported db type: " + type);
         }
@@ -78,32 +91,36 @@ public class ConnectionRepository {
         if (entity == null) {
             throw new IllegalArgumentException(String.format("未找到 username=%s, database=%s 的连接记录", username, databaseName));
         }
-        buildConnection(entity);
-        return dsRouter.getConnection(entity);
+        log.info("连接数据库成功,connectionEntity={}", entity);
+        return buildConnection(entity);
     }
 
-    public ExecuteResult execute(String message) throws Exception {
+    public ResponseEntity<StreamingResponseBody> execute(String message) throws Exception {
         String dbDetails = getAllTablesStructureAsString();
         String SYSTEM_PROMPT = """
             你是一位专业的 SQL 语句编写专家。
             请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句。
+            DATABASE TYPE:
+                {dbType}
             DATABASE DETAILS:
                 {dbDetails}
             DOCUMENTS:
                 {documents}
             注意：
-            1. 生成的SQL语句请一定要用```sql```包裹起来。
+            1. 要注意不同数据库类型的方言限制，如ORACLE不允许使用limit子句等。
+            2. 生成的SQL语句请一定要用```sql```包裹起来。
                如:
                ```sql
                select * from user;
                ```
-            2. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
-            3. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
-            4. 请直接输出SQL语句，不要包含任何其他文字。
+            3. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
+            4. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
+            5. 请直接输出SQL语句，不要包含任何其他文字。
             """;
 
         Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
                 .createMessage(Map.of(
+                        "dbType", dbType,
                         "documents", message,
                         "dbDetails", dbDetails));
         ChatResponse sqlChatResponse = chatModel
@@ -111,8 +128,14 @@ public class ConnectionRepository {
 
         String content = sqlChatResponse.getResult().getOutput().getText();
         String sql = extractText("sql", content);
-        assert sql != null;
+        if (sql == null || sql.isBlank()) {
+            throw new IllegalArgumentException("无法从大模型生成 SQL 语句");
+        }
+        log.info("大模型生成 SQL 语句成功：{}", sql);
+        // 去除末尾分号
         sql = sql.replaceAll(";\\s*$", "");
+
+        // 执行查询
         List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
 
         String jsonData = new ObjectMapper().writeValueAsString(dbResults);
@@ -141,34 +164,76 @@ public class ConnectionRepository {
         String pythonScript = extractText("python",scriptChatResponse.getResult().getOutput().getText());
         assert pythonScript != null;
 
-        // 3) 写脚本到临时目录并以该目录为工作目录执行
+        // 写脚本到临时目录并以该目录为工作目录执行
         String id = runPythonScript(pythonScript);
         String sqlMarkdown = "```sql\n" + sql + "\n```";
 
-        return new ExecuteResult(sqlMarkdown, id);
+        ExecuteResult res = new ExecuteResult(sqlMarkdown, id);
+
+        // 组装返回结果
+        try {
+            StreamingResponseBody body = (OutputStream out) -> {
+                // line 1: markdown
+                String line1 = objectMapper.writeValueAsString(Map.of(
+                        "type", "markdown",
+                        "content", res.getSqlMarkdown()
+                )) + "\n";
+                out.write(line1.getBytes());
+                out.flush();
+
+                byte[] bytes = imageStore.get(id);
+
+                String imageContent;
+                if (bytes != null && bytes.length > 0) {
+                    String base64 = Base64.getEncoder().encodeToString(bytes);
+                    imageContent = "data:image/png;base64," + base64; // data URL
+                } else {
+                    imageContent = null; // 或者空字符串，视客户端解析逻辑而定
+                }
+                assert imageContent != null;
+                // line 2: image
+                String line2 = objectMapper.writeValueAsString(Map.of(
+                        "type", "image",
+                        "content", imageContent
+                )) + "\n";
+                out.write(line2.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            };
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/x-ndjson"))
+                    .body(body);
+
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(outputStream -> {
+                        outputStream.write(("{\"error\":\"" + ex.getMessage() + "\"}\n").getBytes());
+                    });
+        }
     }
 
-    public byte[] getImageBytes(String id) {
-        return imageStore.get(id);
-    }
+//    public byte[] getImageBytes(String id) {
+//        return imageStore.get(id);
+//    }
 
     /**
      * 添加数据库连接
      * @param connectionEntity 数据库连接对象
      */
-    public void InsertConn(ConnectionEntity connectionEntity) {
-        daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
-        log.info("添加数据库连接成功");
+    public int InsertConn(ConnectionEntity connectionEntity) {
+        return daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
+
     }
 
     /**
      * 建立jdbc连接
      * @param connectionEntity 连接实体
      */
-    public void buildConnection(ConnectionEntity connectionEntity) {
+    public Connection buildConnection(ConnectionEntity connectionEntity) throws SQLException {
         // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
         dataSource = dsRouter.createDataSource(connectionEntity);
         this.jdbcTemplate = new JdbcTemplate(dataSource);
+        return dsRouter.getConnection(connectionEntity);
     }
 
     /**
@@ -272,9 +337,7 @@ public class ConnectionRepository {
             // 确定 catalog / schema 的使用方式（针对不同 DB）
             if (product.contains("mysql")) {
                 catalogForMeta = conn.getCatalog();
-                schemaForMeta = null;
             } else if (product.contains("oracle")) {
-                catalogForMeta = null;
                 try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
                 if (schemaForMeta == null || schemaForMeta.isBlank()) {
                     schemaForMeta = meta.getUserName();
@@ -291,7 +354,7 @@ public class ConnectionRepository {
                 try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
             }
 
-            // 用于 Oracle 的注释备份查询（如果需要）
+            // 用于 Oracle 的注释备份查询
             final boolean isOracle = product.contains("oracle");
 
             try (ResultSet tables = meta.getTables(catalogForMeta, schemaForMeta, "%", new String[]{"TABLE"})) {

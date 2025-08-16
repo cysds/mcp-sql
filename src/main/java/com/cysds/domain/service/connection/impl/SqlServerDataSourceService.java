@@ -7,6 +7,7 @@ import com.cysds.domain.entity.SqlServerConnectionEntity;
 import com.cysds.domain.service.connection.DynamicDataSourceService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -17,6 +18,7 @@ import java.util.List;
  * &#064;@description: sqlserver数据源
  * &#064;@create: 2025-08-03 10:18
  **/
+@Slf4j
 @Service
 public class SqlServerDataSourceService implements DynamicDataSourceService<SqlServerConnectionEntity>, ConnectionDao<SqlServerConnectionEntity>{
 
@@ -47,8 +49,16 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
     }
 
     @Override
-    public void InsertConn(ConnectionEntity connectionEntity) {
-        sqlserverMapper.InsertSqlserverConn((SqlServerConnectionEntity) connectionEntity);
+    public int InsertConn(ConnectionEntity connectionEntity) {
+        int rows = 0;
+        try {
+            rows = sqlserverMapper.InsertSqlserverConn((SqlServerConnectionEntity) connectionEntity);
+        } catch (Exception e) {
+            log.error("添加SQL Server数据库连接失败", e);
+            throw new RuntimeException(e);
+        }
+        log.info("添加数据库连接成功,connectionEntity={}", connectionEntity);
+        return rows;
     }
 
     @Override

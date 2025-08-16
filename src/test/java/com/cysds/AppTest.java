@@ -33,7 +33,7 @@ public class AppTest {
         mysqlConnectionEntity.setUsername("root");
         mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
 
-        ExecuteResult executed = connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
+        connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
 
     }
 

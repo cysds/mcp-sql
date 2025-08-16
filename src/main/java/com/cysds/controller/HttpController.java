@@ -4,22 +4,16 @@ import com.cysds.dao.ConnectionDao;
 import com.cysds.domain.entity.*;
 import com.cysds.domain.repository.ConnectionRepository;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.annotation.Resource;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.util.Base64;
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -36,9 +30,6 @@ public class HttpController {
 
     @Resource
     private ConnectionRepository connectionRepository;
-
-    @Resource
-    private ObjectMapper objectMapper;
 
     @Autowired
     public HttpController(List<ConnectionDao<?>> daos) {
@@ -75,52 +66,12 @@ public class HttpController {
     }
 
     @PostMapping("/insert")
-    public void insert(@RequestBody ConnectionEntity connectionEntity) {
-        connectionRepository.InsertConn(connectionEntity);
+    public int insert(@RequestBody ConnectionEntity connectionEntity) {
+        return connectionRepository.InsertConn(connectionEntity);
     }
 
     @PostMapping(value = "/execute", produces = "application/x-ndjson")
-    public ResponseEntity<StreamingResponseBody> execute(@RequestBody String message) {
-        try {
-            ExecuteResult res = connectionRepository.execute(message);
-
-            StreamingResponseBody body = (OutputStream out) -> {
-                // line 1: markdown
-                String line1 = objectMapper.writeValueAsString(Map.of(
-                        "type", "markdown",
-                        "content", res.getSqlMarkdown()
-                )) + "\n";
-                out.write(line1.getBytes());
-                out.flush();
-
-                byte[] bytes = connectionRepository.getImageBytes(res.getImageId());
-
-                String imageContent;
-                if (bytes != null && bytes.length > 0) {
-                    String base64 = Base64.getEncoder().encodeToString(bytes);
-                    imageContent = "data:image/png;base64," + base64; // data URL
-                } else {
-                    imageContent = null; // 或者空字符串，视客户端解析逻辑而定
-                }
-                assert imageContent != null;
-                // line 2: image
-                String line2 = objectMapper.writeValueAsString(Map.of(
-                        "type", "image",
-                        "content", imageContent
-                )) + "\n";
-                out.write(line2.getBytes(StandardCharsets.UTF_8));
-                out.flush();
-            };
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType("application/x-ndjson"))
-                    .body(body);
-
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(outputStream -> {
-                        outputStream.write(("{\"error\":\"" + ex.getMessage() + "\"}\n").getBytes());
-                    });
-        }
+    public ResponseEntity<StreamingResponseBody> execute(@RequestBody String message) throws Exception {
+        return connectionRepository.execute(message);
     }
 }
