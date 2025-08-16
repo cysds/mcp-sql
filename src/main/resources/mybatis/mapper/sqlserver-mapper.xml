@@ -43,4 +43,19 @@
         FROM tb_sqlserver_conn
     </select>
 
+    <select id="getSqlserverConnByUserAndDb"
+            resultMap="SqlserverConnMap"
+            parameterType="map">
+        SELECT
+            type,
+            username,
+            password,
+            host,
+            port,
+            database_name
+        FROM tb_sqlserver_conn
+        WHERE username = #{username}
+          AND database_name = #{databaseName}
+    </select>
+
 </mapper>

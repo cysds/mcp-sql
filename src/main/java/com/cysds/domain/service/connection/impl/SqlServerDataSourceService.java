@@ -31,7 +31,7 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
         String url = String.format("jdbc:sqlserver://%s:%d",
                 entity.getHost(), entity.getPort());
 
-        url += ";databaseName=" + entity.getDatabase();
+        url += ";databaseName=" + entity.getDatabase() + ";encrypt=true;trustServerCertificate=true;";
         hc.setJdbcUrl(url);
         hc.setUsername(entity.getUsername());
         hc.setPassword(entity.getPassword());

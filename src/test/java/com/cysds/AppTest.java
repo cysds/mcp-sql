@@ -4,13 +4,16 @@ import com.cysds.dao.IMysqlDao;
 import com.cysds.domain.entity.*;
 import com.cysds.domain.repository.ConnectionRepository;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -39,14 +42,20 @@ public class AppTest {
 
     @Test
     public void testInsert() throws Exception {
-        OracleConnectionEntity oracleConnectionEntity = new OracleConnectionEntity();
-        oracleConnectionEntity.setHost("127.0.0.1");
-        oracleConnectionEntity.setPort(1521);
-        oracleConnectionEntity.setServiceName("orcl");
-        oracleConnectionEntity.setUsername("CYSDS");
-        oracleConnectionEntity.setPassword("1622nuaa");
+        SqlServerConnectionEntity sqlServerConnectionEntity = new SqlServerConnectionEntity();
 
-        connectionRepository.buildConnection(oracleConnectionEntity);
+        sqlServerConnectionEntity.setHost("127.0.0.1");
+        sqlServerConnectionEntity.setPort(1433);
+        sqlServerConnectionEntity.setDatabase("db_school");
+        sqlServerConnectionEntity.setUsername("test_user");
+        sqlServerConnectionEntity.setPassword("1622nuaa");
+
+        val connection = connectionRepository.buildConnection(sqlServerConnectionEntity);
+
+        List<Map<String, Object>> dbResults = connectionRepository.query("select * from course.tb_course;");
+
+        System.out.println(dbResults);
+
 
         int a;
     }

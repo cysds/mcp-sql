@@ -59,7 +59,6 @@ public class ConnectionRepository {
     @Resource
     private ObjectMapper objectMapper;
 
-
     private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
     @Autowired
@@ -72,6 +71,7 @@ public class ConnectionRepository {
 
     private HikariDataSource dataSource; //HikariDataSource
 
+    @Resource
     private JdbcTemplate jdbcTemplate;
 
     // 图片内存缓存（id -> bytes）
@@ -236,6 +236,10 @@ public class ConnectionRepository {
         return dsRouter.getConnection(connectionEntity);
     }
 
+    public List<Map<String, Object>> query(String sql) {
+        return jdbcTemplate.queryForList(sql);
+    }
+
     /**
      * 将 script 内容写入临时 .py 文件并执行，返回脚本的标准输出内容。
      *
@@ -345,7 +349,9 @@ public class ConnectionRepository {
                 if (schemaForMeta != null) schemaForMeta = schemaForMeta.toUpperCase(java.util.Locale.ROOT);
             } else if (product.contains("microsoft") || product.contains("sql server")) {
                 catalogForMeta = conn.getCatalog(); // database name
-                try { schemaForMeta = conn.getSchema(); } catch (Throwable ignored) {}
+                try {
+                    schemaForMeta = "course";
+                } catch (Throwable ignored) {}
                 // 如果 schema 为空，允许为 null（JDBC 会匹配所有）
                 if (schemaForMeta != null && schemaForMeta.isBlank()) schemaForMeta = null;
             } else {
