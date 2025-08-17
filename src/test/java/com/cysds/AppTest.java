@@ -9,7 +9,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 import javax.annotation.Resource;
 import java.util.List;
@@ -30,14 +29,15 @@ public class AppTest {
 
     @Test
     public void testMysqlConnection() throws Exception {
-        mysqlConnectionEntity.setHost("127.0.0.1");
-        mysqlConnectionEntity.setPort(3306);
-        mysqlConnectionEntity.setDatabase("database_work");
-        mysqlConnectionEntity.setUsername("root");
-        mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
+        mysqlDao.DeleteMysqlConnById(4);
+//        mysqlConnectionEntity.setHost("127.0.0.1");
+//        mysqlConnectionEntity.setPort(3306);
+//        mysqlConnectionEntity.setDatabase("database_work");
+//        mysqlConnectionEntity.setUsername("root");
+//        mysqlConnectionEntity.setPassword("CYSDS1622nuaa!");
+//        mysqlDao.InsertMysqlConn(mysqlConnectionEntity);
 
-        connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
-
+//        connectionRepository.execute("帮我生成每门课程的平均成绩柱状图");
     }
 
     @Test
@@ -49,14 +49,9 @@ public class AppTest {
         sqlServerConnectionEntity.setDatabase("db_school");
         sqlServerConnectionEntity.setUsername("test_user");
         sqlServerConnectionEntity.setPassword("1622nuaa");
+        sqlServerConnectionEntity.setSchemaName("course");
 
         val connection = connectionRepository.buildConnection(sqlServerConnectionEntity);
 
-        List<Map<String, Object>> dbResults = connectionRepository.query("select * from course.tb_course;");
-
-        System.out.println(dbResults);
-
-
-        int a;
     }
 }

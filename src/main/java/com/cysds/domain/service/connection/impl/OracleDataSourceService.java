@@ -38,8 +38,8 @@ public class OracleDataSourceService implements DynamicDataSourceService<OracleC
     }
 
     @Override
-    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-        return oracleMapper.getOracleConnByUserAndDb(username, dbName);
+    public ConnectionEntity getConnById(int id) {
+        return oracleMapper.getOracleConnById(id);
     }
 
     @Override
@@ -56,6 +56,18 @@ public class OracleDataSourceService implements DynamicDataSourceService<OracleC
             throw new RuntimeException("添加Oracle数据库连接失败", e);
         }
         log.info("添加数据库连接成功,connectionEntity={}", connectionEntity);
+        return rows;
+    }
+
+    @Override
+    public int DeleteConnById(int id) {
+        int rows = 0;
+        try {
+            rows = oracleMapper.DeleteOracleConnById(id);
+        } catch (Exception e) {
+            throw new RuntimeException("删除Oracle数据库连接记录失败", e);
+        }
+        log.info("添加数据库连接成功,影响行数：{}", rows);
         return rows;
     }
 

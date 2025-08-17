@@ -11,9 +11,10 @@ import java.util.List;
  * &#064;@create: 2025-08-09 14:48
  **/
 public interface ConnectionDao<T extends ConnectionEntity> {
-    ConnectionEntity getConnByUserAndDb(String username, String dbName);
+    ConnectionEntity getConnById(int id);
     ConnectionEntity.DbType getDbType();
     int InsertConn(ConnectionEntity connectionEntity);
+    int DeleteConnById(int id);
 
     List<T> getAllConn();
 }

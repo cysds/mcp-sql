@@ -16,6 +16,7 @@ public class SqlServerConnectionEntity extends ConnectionEntity {
     private String host;
     private int    port;
     private String database;
+    private String schemaName = "dbo";
 
     public SqlServerConnectionEntity() {
         setType(ConnectionEntity.DbType.SQLSERVER);

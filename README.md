@@ -11,13 +11,14 @@
 
 
 #### 界面如下
-<img width="2560" height="1288" alt="image" src="https://github.com/user-attachments/assets/7319dc5b-700f-4563-84d5-08b9d9810b50" />
+![img.png](img.png)
 
-
-#### 保存连接的表结构(未设主键，可自行添加)
+#### 保存连接的表结构
 ```sql
-create table `conn-repo`.tb_mysql_conn
+create table tb_mysql_conn
 (
+    id            int auto_increment
+        primary key,
     type          enum ('MYSQL', 'POSTGRES', 'ORACLE', 'SQLSERVER') default 'MYSQL' not null comment '数据库类型',
     username      varchar(100)                                                      not null comment '登录用户名',
     password      varchar(100)                                                      not null comment '登录密码（建议加密存储）',
@@ -29,8 +30,10 @@ create table `conn-repo`.tb_mysql_conn
 )
     comment 'mysql数据库' collate = utf8mb4_unicode_ci;
 
-create table `conn-repo`.tb_oracle_conn
+create table tb_oracle_conn
 (
+    id           int auto_increment
+        primary key,
     type         enum ('MYSQL', 'POSTGRES', 'ORACLE', 'SQLSERVER') default 'ORACLE' not null comment '数据库类型',
     username     varchar(100)                                                       not null comment '登录用户名',
     password     varchar(100)                                                       not null comment '登录密码',
@@ -42,18 +45,23 @@ create table `conn-repo`.tb_oracle_conn
 )
     comment 'oracle数据库' collate = utf8mb4_unicode_ci;
 
-create table `conn-repo`.tb_sqlserver_conn
+create table tb_sqlserver_conn
 (
+    id            int auto_increment
+        primary key,
     type          enum ('MYSQL', 'POSTGRES', 'ORACLE', 'SQLSERVER') default 'SQLSERVER' not null comment '数据库类型',
     username      varchar(100)                                                          not null comment '登录用户名',
     password      varchar(100)                                                          not null comment '登录密码（建议加密存储）',
     host          varchar(255)                                                          not null comment '数据库主机地址或 IP',
     port          int unsigned                                      default '1433'      not null comment '端口号，sqlserver 默认 1433',
     database_name varchar(100)                                                          not null comment '数据库名称',
+    schema_name   varchar(50)                                       default 'dbo'       null,
     constraint uk_connection
-        unique (type, host, port, database_name, username)
+        unique (type, host, port, database_name, username, schema_name)
 )
     comment 'sqlserver数据库' collate = utf8mb4_unicode_ci;
+
+
 
 
 ```

@@ -18,6 +18,7 @@ public interface ISqlserverDao {
 
     List<SqlServerConnectionEntity> ListSqlserverConn();
 
-    SqlServerConnectionEntity getSqlserverConnByUserAndDb(String username, String databaseName);
+    SqlServerConnectionEntity getSqlserverConnById(int id);
 
+    int DeleteSqlserverConnById(int id);
 }

@@ -39,8 +39,8 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
     }
 
     @Override
-    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-        return sqlserverMapper.getSqlserverConnByUserAndDb(username, dbName);
+    public ConnectionEntity getConnById(int id) {
+        return sqlserverMapper.getSqlserverConnById(id);
     }
 
     @Override
@@ -58,6 +58,19 @@ public class SqlServerDataSourceService implements DynamicDataSourceService<SqlS
             throw new RuntimeException(e);
         }
         log.info("添加数据库连接成功,connectionEntity={}", connectionEntity);
+        return rows;
+    }
+
+    @Override
+    public int DeleteConnById(int id) {
+        int rows = 0;
+        try {
+            rows = sqlserverMapper.DeleteSqlserverConnById(id); // TODO: 2025-08-03 10:18 未实现delete
+        } catch (Exception e) {
+            log.error("删除SQL Server数据库连接记录失败", e);
+            throw new RuntimeException(e);
+        }
+        log.info("删除数据库连接成功,影响行数：{}", rows);
         return rows;
     }
 

@@ -50,9 +50,8 @@ public class HttpController {
     @GetMapping("/connect")
     public ResponseEntity<String> connect(
             @RequestParam ConnectionEntity.DbType type,
-            @RequestParam String username,
-            @RequestParam String databaseName) {
-        try (Connection conn = connectionRepository.connectByUserAndDb(type, username, databaseName)) {
+            @RequestParam int id) {
+        try (Connection conn = connectionRepository.connectById(type, id)) {
             if (conn.isValid(2)) {
                 return ResponseEntity.ok("连接成功！");
             } else {
@@ -63,6 +62,11 @@ public class HttpController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("连接时发生异常: " + e.getMessage());
         }
+    }
+
+    @DeleteMapping("/delete")
+    public int delete(@RequestParam ConnectionEntity.DbType type, @RequestParam int id) {
+        return connectionRepository.DeleteConnById(id);
     }
 
     @PostMapping("/insert")

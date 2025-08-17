@@ -18,6 +18,7 @@ public interface IOracleDao {
 
     List<OracleConnectionEntity> ListOracleConn();
 
-    OracleConnectionEntity getOracleConnByUserAndDb(String username, String serviceName);
+    OracleConnectionEntity getOracleConnById(int id);
 
+    int DeleteOracleConnById(int id);
 }

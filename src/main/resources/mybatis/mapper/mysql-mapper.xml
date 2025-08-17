@@ -7,6 +7,7 @@
 
     <!-- 结果映射，把列名映射到实体属性 -->
     <resultMap id="MysqlConnMap" type="com.cysds.domain.entity.MysqlConnectionEntity">
+        <result property="id"       column="id" />
         <result property="type"     column="type" />
         <result property="username" column="username" />
         <result property="password" column="password" />
@@ -35,6 +36,7 @@
     <select id="ListMysqlConn"
             resultMap="MysqlConnMap">
         SELECT
+            id,
             type,
             username,
             host,
@@ -43,7 +45,7 @@
         FROM tb_mysql_conn
     </select>
 
-    <select id="getMysqlConnByUserAndDb"
+    <select id="getMysqlConnById"
             resultMap="MysqlConnMap"
             parameterType="map">
         SELECT
@@ -54,8 +56,11 @@
             port,
             database_name
         FROM tb_mysql_conn
-        WHERE username = #{username}
-          AND database_name = #{databaseName}
+        WHERE id = #{id}
     </select>
+
+    <delete id="DeleteMysqlConnById">
+        DELETE FROM tb_mysql_conn WHERE id = #{id}
+    </delete>
 
 </mapper>

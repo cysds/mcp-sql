@@ -36,8 +36,8 @@ public class MysqlDataSourceService implements DynamicDataSourceService<MysqlCon
     }
 
     @Override
-    public ConnectionEntity getConnByUserAndDb(String username, String dbName) {
-        return mysqlMapper.getMysqlConnByUserAndDb(username, dbName);
+    public ConnectionEntity getConnById(int id) {
+        return mysqlMapper.getMysqlConnById(id);
     }
 
     @Override
@@ -54,6 +54,18 @@ public class MysqlDataSourceService implements DynamicDataSourceService<MysqlCon
             throw new RuntimeException("添加MySQL连接失败", e);
         }
         log.info("添加数据库连接成功,connectionEntity={}", connectionEntity);
+        return rows;
+    }
+
+    @Override
+    public int DeleteConnById(int id) {
+        int rows = 0;
+        try {
+            rows = mysqlMapper.DeleteMysqlConnById(id);;
+        } catch (Exception e) {
+            throw new RuntimeException("删除MySQL连接记录失败", e);
+        }
+        log.info("删除数据库连接成功,影响行数：{}", rows);
         return rows;
     }
 

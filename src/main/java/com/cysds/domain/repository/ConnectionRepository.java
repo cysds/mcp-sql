@@ -3,6 +3,7 @@ package com.cysds.domain.repository;
 import com.cysds.dao.ConnectionDao;
 import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.entity.ExecuteResult;
+import com.cysds.domain.entity.SqlServerConnectionEntity;
 import com.cysds.domain.router.DynamicDataSourceRouter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
@@ -79,19 +80,25 @@ public class ConnectionRepository {
     // 定时清理线程池
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    String dbType = "";
+    private ConnectionEntity.DbType dbType;
 
-    public Connection connectByUserAndDb(ConnectionEntity.DbType type, String username, String databaseName) throws SQLException {
+    private String schemaName = "dbo";
+
+    public Connection connectById(ConnectionEntity.DbType type, int id) throws SQLException {
         ConnectionDao<?> dao = daoMap.get(type);
-        dbType = type.toString();
+        dbType = type;
         if (dao == null) {
             throw new IllegalArgumentException("unsupported db type: " + type);
         }
-        ConnectionEntity entity = dao.getConnByUserAndDb(username, databaseName);
+        ConnectionEntity entity = dao.getConnById(id);
         if (entity == null) {
-            throw new IllegalArgumentException(String.format("未找到 username=%s, database=%s 的连接记录", username, databaseName));
+            throw new IllegalArgumentException(String.format("未找到 username=%s, database=%s 的连接记录"));
         }
         log.info("连接数据库成功,connectionEntity={}", entity);
+        if(type == ConnectionEntity.DbType.SQLSERVER){
+            SqlServerConnectionEntity sqlServerConnectionEntity = (SqlServerConnectionEntity) entity;
+            schemaName = sqlServerConnectionEntity.getSchemaName();
+        }
         return buildConnection(entity);
     }
 
@@ -120,7 +127,7 @@ public class ConnectionRepository {
 
         Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
                 .createMessage(Map.of(
-                        "dbType", dbType,
+                        "dbType", dbType.toString(),
                         "documents", message,
                         "dbDetails", dbDetails));
         ChatResponse sqlChatResponse = chatModel
@@ -212,10 +219,6 @@ public class ConnectionRepository {
         }
     }
 
-//    public byte[] getImageBytes(String id) {
-//        return imageStore.get(id);
-//    }
-
     /**
      * 添加数据库连接
      * @param connectionEntity 数据库连接对象
@@ -223,6 +226,11 @@ public class ConnectionRepository {
     public int InsertConn(ConnectionEntity connectionEntity) {
         return daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
 
+    }
+
+
+    public int DeleteConnById(int id) {
+        return daoMap.get(dbType).DeleteConnById(id);
     }
 
     /**
@@ -234,10 +242,6 @@ public class ConnectionRepository {
         dataSource = dsRouter.createDataSource(connectionEntity);
         this.jdbcTemplate = new JdbcTemplate(dataSource);
         return dsRouter.getConnection(connectionEntity);
-    }
-
-    public List<Map<String, Object>> query(String sql) {
-        return jdbcTemplate.queryForList(sql);
     }
 
     /**
@@ -350,7 +354,7 @@ public class ConnectionRepository {
             } else if (product.contains("microsoft") || product.contains("sql server")) {
                 catalogForMeta = conn.getCatalog(); // database name
                 try {
-                    schemaForMeta = "course";
+                    schemaForMeta = schemaName;
                 } catch (Throwable ignored) {}
                 // 如果 schema 为空，允许为 null（JDBC 会匹配所有）
                 if (schemaForMeta != null && schemaForMeta.isBlank()) schemaForMeta = null;
@@ -531,5 +535,4 @@ public class ConnectionRepository {
 
         return sb.toString();
     }
-
 }

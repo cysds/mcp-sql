@@ -3,284 +3,211 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>DB 管理面板</title>
+    <title>数据库连接管理</title>
     <style>
-        :root {
-            --bg: #0f1113;
-            --panel: #161819;
-            --muted: #9aa0a6;
-            --accent: #6c9ef8;
-            --card: #1b1d1f;
-            --border: #252728;
-            --success: #35b57f;
+        :root{
+            --bg:#0f1113; --panel:#151718; --muted:#9aa3ab; --accent:#7c9cff;
+            --card:#121315; --border: rgba(255,255,255,0.04);
         }
-        html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:#e6eef8;background:linear-gradient(180deg,#0b0c0d, #0f1113);}
-        .wrap{display:grid;grid-template-columns:minmax(320px,600px) 1fr;gap:18px;height:100vh;padding:18px;}
-        .sidebar{background:var(--panel);border-radius:10px;padding:12px;overflow:auto;border:1px solid var(--border)}
-        .main{padding:18px;border-radius:10px;background:linear-gradient(180deg,#0f1316,#0b0d0f);border:1px solid var(--border);overflow:auto}
-        h2{margin:6px 0 12px 0;color:#fff}
-        label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
-        input,select,button,textarea{background:var(--card);border:1px solid var(--border);color:#eaf3ff;padding:8px;border-radius:6px;width:100%;box-sizing:border-box}
-        .row{display:flex;gap:10px}
-        .row > *{flex:1}
-        .btn{background:linear-gradient(90deg,var(--accent),#4aa0ff);border:0;color:#021225;padding:10px 12px;font-weight:600;cursor:pointer}
-        .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer}
-        table{width:100%;border-collapse:collapse;margin-top:8px;color:#eaf3ff}
-        th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:13px;text-align:left}
-        thead th{color:var(--muted);font-size:12px}
+        html,body{height:100%;margin:0;font-family: "Helvetica Neue", Arial, sans-serif;background:var(--bg);color:#e6eef8;}
+        .app{display:flex;height:100vh;}
+        .sidebar{
+            width:260px;background:linear-gradient(180deg,#0b0c0d,#0d0e10);padding:16px;border-right:1px solid var(--border);
+            box-sizing:border-box;overflow:auto;
+        }
+        .sidebar h2{margin:4px 0 16px;font-size:18px;color:var(--accent)}
+        .sidebar button{width:100%;padding:8px;border-radius:8px;border:0;background:rgba(255,255,255,0.04);color:var(--muted);cursor:pointer}
+        .main{flex:1;padding:20px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;overflow:auto}
+        .row{display:flex;gap:12px}
+        .card{background:var(--panel);padding:14px;border-radius:10px;border:1px solid var(--border);box-shadow: 0 2px 6px rgba(0,0,0,0.4)}
+        .card h3{margin:0 0 10px;font-size:16px;color:#dbe9ff}
+        form .form-row{display:flex;gap:8px;margin-bottom:8px}
+        label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+        input[type="text"], input[type="number"], select, textarea{
+            width:100%;padding:8px;border-radius:6px;background:#0d1113;border:1px solid var(--border);color:#dbe9ff;box-sizing:border-box;
+        }
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:left}
+        th{font-size:12px;color:var(--muted)}
+        .actions button{margin-right:6px;padding:6px 8px;border-radius:6px;border:0;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted)}
+        .muted{color:var(--muted);font-size:13px}
+        .logbox{height:160px;overflow:auto;background:#0b0d0f;padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-family:monospace;font-size:13px}
+        .btn-primary{background:var(--accent);color:#07102b;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
         .small{font-size:12px;color:var(--muted)}
-        pre.log{height:120px;overflow:auto;background:#0b0c0d;padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--muted)}
-        .card{background:var(--panel);padding:12px;border-radius:8px;margin-bottom:12px;border:1px solid var(--border)}
-        .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px}
-        img.preview{max-width:100%;border-radius:6px;margin-top:8px;border:1px solid var(--border)}
-        footer.small{color:var(--muted);font-size:12px;margin-top:10px}
+        .flex-between{display:flex;justify-content:space-between;align-items:center}
     </style>
 </head>
 <body>
-<div class="wrap">
-    <aside class="sidebar">
-        <h2>连接列表</h2>
-        <div class="card">
+<div class="app">
+    <div class="sidebar card">
+        <h2>数据库连接管理</h2>
+        <div class="small muted">固定 Base: <br><strong>http://localhost:8080/v1/api/db</strong></div>
+        <div style="height:12px"></div>
+        <button id="refresh-list">刷新连接列表</button>
+        <div style="height:10px"></div>
+        <button id="show-insert">添加连接</button>
+        <div style="height:8px"></div>
+        <button id="show-execute">执行 SQL / 接收流</button>
+        <div style="height:16px"></div>
+        <div class="small muted">提示：</div>
+        <ul class="small muted">
+            <li>插入时不要传 id（后端/数据库负责自增）</li>
+            <li>若端口留空会使用默认端口</li>
+            <li>Oracle 默认 serviceName = <code>orcl</code></li>
+            <li>SQLServer 默认 schemaName = <code>dbo</code></li>
+        </ul>
+    </div>
+
+    <div class="main">
+        <!-- Insert Card -->
+        <div id="insert-card" class="card" style="display:none;">
             <div class="flex-between">
-                <div class="small">已保存连接</div>
-                <div>
-                    <button id="refreshList" class="btn-ghost">刷新</button>
-                </div>
+                <h3>添加连接</h3>
+                <div class="small muted">请选择类型并填写参数</div>
             </div>
+            <form id="insert-form">
+                <div class="form-row">
+                    <div style="flex:1">
+                        <label>类型</label>
+                        <select id="conn-type" required>
+                            <option value="MYSQL">MYSQL</option>
+                            <option value="ORACLE">ORACLE</option>
+                            <option value="SQLSERVER">SQLSERVER</option>
+                        </select>
+                    </div>
+                    <div style="flex:1">
+                        <label>用户名</label>
+                        <input id="username" type="text" placeholder="用户名" required />
+                    </div>
+                    <div style="flex:1">
+                        <label>密码</label>
+                        <input id="password" type="text" placeholder="密码" />
+                    </div>
+                </div>
+
+                <div id="type-specific">
+                    <!-- MySQL / Oracle / SqlServer common fields will be here -->
+                    <div class="form-row">
+                        <div style="flex:1">
+                            <label>主机 (host)</label>
+                            <input id="host" type="text" placeholder="127.0.0.1" />
+                        </div>
+                        <div style="flex:1">
+                            <label>端口 (port)</label>
+                            <input id="port" type="number" placeholder="根据类型选择默认端口" />
+                        </div>
+                        <div style="flex:1">
+                            <label id="third-label">Database / Service / Schema</label>
+                            <input id="third-field" type="text" placeholder="数据库名 / serviceName / schemaName" />
+                        </div>
+                        <!-- 新增：仅 SQLServer 使用的 schemaName 行 -->
+                        <div id="schema-row" style="display:none;">
+                            <div style="flex:1">
+                                <label>schemaName (仅 SQLServer)</label>
+                                <input id="schemaName" type="text" placeholder="dbo" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <button type="submit" class="btn-primary">添加连接</button>
+                    <button type="button" id="insert-reset">重置</button>
+                </div>
+                <div style="height:8px"></div>
+                <div id="insert-result" class="small muted"></div>
+            </form>
+        </div>
+
+        <!-- List Card -->
+        <div id="list-card" class="card">
+            <div class="flex-between">
+                <h3>连接列表</h3>
+                <div><button id="btn-refresh" class="">刷新</button></div>
+            </div>
+            <div style="height:8px"></div>
             <table id="conn-table">
                 <thead>
-                <tr><th>类型</th><th>用户</th><th>host</th><th>port</th><th>db/service</th><th>操作</th></tr>
+                <tr><th>id</th><th>type</th><th>username</th><th>host</th><th>port</th><th>database</th><th>schemaName</th><th>操作</th></tr>
                 </thead>
-                <tbody><tr><td colspan="6" class="small">加载中...</td></tr></tbody>
+                <tbody>
+                <tr><td colspan="7" class="muted">加载中...</td></tr>
+                </tbody>
             </table>
         </div>
 
-        <h2>添加连接</h2>
-        <div class="card">
-            <label>类型</label>
-            <select id="type">
-                <option value="MYSQL">MYSQL</option>
-                <option value="ORACLE">ORACLE</option>
-                <option value="SQLSERVER">SQLSERVER</option>
-            </select>
-
-            <label>用户名</label>
-            <input id="username" placeholder="数据库用户名" />
-
-            <label>密码</label>
-            <input id="password" placeholder="数据库密码" type="password" />
-
-            <label>Host</label>
-            <input id="host" placeholder="例：127.0.0.1" />
-
-            <div class="row">
-                <div>
-                    <label>Port（为空使用默认）</label>
-                    <input id="port" placeholder="3306 / 1521 / 1433" />
+        <!-- Execute Card -->
+        <div id="execute-card" class="card" style="display:none;">
+            <h3>Execute（流式响应）</h3>
+            <div class="form-row">
+                <div style="flex:1">
+                    <label>消息（请求体）</label>
+                    <textarea id="message" rows="4" placeholder='输入 JSON 或其他请求体'></textarea>
                 </div>
-                <div id="db-or-service-wrapper">
-                    <label id="db-or-service-label">Database</label>
-                    <input id="database" placeholder="数据库名 或 Oracle serviceName" />
+                <div style="width:200px">
+                    <label>Content-Type</label>
+                    <select id="ctype">
+                        <option value="application/json">application/json</option>
+                        <option value="text/plain">text/plain</option>
+                        <option value="application/x-ndjson">application/x-ndjson</option>
+                    </select>
+                    <div style="height:8px"></div>
+                    <label>Base URL（固定）</label>
+                    <input id="baseUrl" type="text" value="http://localhost:8080" />
                 </div>
             </div>
 
-            <div style="margin-top:10px;display:flex;gap:10px">
-                <button id="insertBtn" class="btn">添加连接</button>
-                <button id="clearInsert" class="btn-ghost">重置</button>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                <button id="btn" class="btn-primary">发送请求 / 开始流</button>
+                <button id="clear">清空</button>
             </div>
 
-            <div style="margin-top:10px">
-                <pre id="insert-log" class="log"></pre>
-            </div>
-        </div>
+            <div style="display:flex;gap:12px;margin-top:12px;">
+                <div style="flex:1">
+                    <label>文本输出</label>
+                    <pre id="sql" class="logbox">(尚无内容)</pre>
+                    <div style="height:8px"></div>
+                    <label>日志</label>
+                    <textarea id="log" class="logbox" readonly></textarea>
+                </div>
+                <div style="width:1000px">
+                    <label>图片预览</label>
+                    <div style="height:500px;background:#060708;border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">
+                        <img id="img" style="max-width:100%;max-height:100%;display:block" />
+                    </div>
 
-        <footer class="small">API Base: <code id="apiBase">http://localhost:8080/v1/api/db</code></footer>
-    </aside>
-
-    <main class="main">
-        <h2>执行 SQL（流式返回）</h2>
-        <div class="card">
-            <label>请求 Base URL（留空使用当前页面 origin）</label>
-            <input id="baseUrl" placeholder="http://localhost:8080" />
-
-            <label>请求 Content-Type</label>
-            <select id="ctype">
-                <option value="application/json">application/json</option>
-                <option value="text/plain">text/plain</option>
-                <option value="application/x-ndjson">application/x-ndjson</option>
-            </select>
-
-            <label>在此输入请求</label>
-            <textarea id="message" rows="5" placeholder='{请输入查询内容}'></textarea>
-
-            <div style="margin-top:10px;display:flex;gap:10px">
-                <button id="btn" class="btn">发送请求</button>
-                <button id="clear" class="btn-ghost">清空</button>
-            </div>
-
-            <div style="margin-top:12px">
-                <div class="small">返回 SQL / Markdown</div>
-                <pre id="sql" class="log">(尚无内容)</pre>
-                <div class="small" style="margin-top:8px">返回图片</div>
-                <img id="img" class="preview" alt="图片预览" src="" />
-                <div class="small" style="margin-top:8px">流/调试日志</div>
-                <pre id="log" class="log"></pre>
+                </div>
             </div>
         </div>
-    </main>
+    </div>
 </div>
 
 <script>
-    // 基础配置
-    const apiBase = 'http://localhost:8080/v1/api/db';
-    const insertLog = document.getElementById('insert-log');
-    const connTableBody = document.querySelector('#conn-table tbody');
+    (() => {
+        const API_BASE = 'http://localhost:8080/v1/api/db'; // 固定 base
+        // DOM
+        const insertCard = document.getElementById('insert-card');
+        const listCard = document.getElementById('list-card');
+        const executeCard = document.getElementById('execute-card');
+        const showInsertBtn = document.getElementById('show-insert');
+        const showExecuteBtn = document.getElementById('show-execute');
+        const refreshListBtn = document.getElementById('btn-refresh');
+        const refreshSidebar = document.getElementById('refresh-list');
 
-    function logInsert(msg) {
-        insertLog.textContent += msg + '\n';
-        insertLog.scrollTop = insertLog.scrollHeight;
-    }
+        const form = document.getElementById('insert-form');
+        const typeSel = document.getElementById('conn-type');
+        const usernameEl = document.getElementById('username');
+        const passwordEl = document.getElementById('password');
+        const hostEl = document.getElementById('host');
+        const portEl = document.getElementById('port');
+        const thirdLabel = document.getElementById('third-label');
+        const thirdField = document.getElementById('third-field');
+        const insertResult = document.getElementById('insert-result');
+        const resetBtn = document.getElementById('insert-reset');
 
-    // 列表 & 渲染
-    async function fetchAndRender() {
-        connTableBody.innerHTML = '<tr><td colspan="6" class="small">加载中...</td></tr>';
-        try {
-            const res = await fetch(`${apiBase}/list`);
-            if (!res.ok) {
-                const t = await res.text();
-                connTableBody.innerHTML = `<tr><td colspan="6">Error ${res.status}: ${t}</td></tr>`;
-                return;
-            }
-            const list = await res.json();
-            if (!Array.isArray(list) || list.length === 0) {
-                connTableBody.innerHTML = `<tr><td colspan="6" class="small">无连接记录</td></tr>`;
-                return;
-            }
+        const tbody = document.querySelector('#conn-table tbody');
 
-            connTableBody.innerHTML = '';
-            list.forEach(item => {
-                const tr = document.createElement('tr');
-                const type = item.type || item.dbType || '';
-                const username = item.username || '';
-                const host = item.host || '';
-                const port = item.port || '';
-                const dbOrService = item.database || item.serviceName || '';
-                tr.innerHTML = `
-            <td>${type}</td>
-            <td>${username}</td>
-            <td>${host}</td>
-            <td>${port}</td>
-            <td>${dbOrService}</td>
-            <td>
-              <button class="btn-ghost" onclick="connectFromRow('${encodeURIComponent(type)}','${encodeURIComponent(username)}','${encodeURIComponent(dbOrService)}')">连接</button>
-            </td>
-          `;
-                connTableBody.appendChild(tr);
-            });
-        } catch (e) {
-            connTableBody.innerHTML = `<tr><td colspan="6">请求异常: ${e}</td></tr>`;
-        }
-    }
-
-    // connect: 调用 /connect 接口
-    async function connectFromRow(type, username, db) {
-        try {
-            const t = decodeURIComponent(type);
-            const u = decodeURIComponent(username);
-            const dbn = decodeURIComponent(db);
-            const url = `${apiBase}/connect?type=${encodeURIComponent(t)}&username=${encodeURIComponent(u)}&databaseName=${encodeURIComponent(dbn)}`;
-            const res = await fetch(url);
-            const text = await res.text();
-            alert(text);
-        } catch (e) {
-            alert('连接请求出错：' + e);
-        }
-    }
-
-    // Insert - 根据类型组装对象并 POST
-    document.getElementById('insertBtn').addEventListener('click', async () => {
-        insertLog.textContent = '';
-        const type = document.getElementById('type').value;
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
-        const host = document.getElementById('host').value.trim() || '127.0.0.1';
-        let portRaw = document.getElementById('port').value.trim();
-        let dbOrService = document.getElementById('database').value.trim();
-
-        // 默认端口 / 默认 serviceName
-        const defaults = { MYSQL: 3306, ORACLE: 1521, SQLSERVER: 1433 };
-        if (!portRaw) portRaw = String(defaults[type]);
-        if (type === 'ORACLE' && !dbOrService) dbOrService = 'orcl';
-
-        const port = parseInt(portRaw, 10) || defaults[type];
-
-        // 组装对象
-        let payload = {
-            type: type,
-            username: username,
-            password: password
-        };
-
-        if (type === 'MYSQL') {
-            payload.host = host;
-            payload.port = port;
-            payload.database = dbOrService || '';
-        } else if (type === 'ORACLE') {
-            payload.host = host;
-            payload.port = port;
-            payload.serviceName = dbOrService || 'orcl';
-        } else if (type === 'SQLSERVER') {
-            payload.host = host;
-            payload.port = port;
-            payload.database = dbOrService || '';
-        }
-
-        logInsert('准备发送：' + JSON.stringify(payload, null, 2));
-        try {
-            const res = await fetch(`${apiBase}/insert`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const text = await res.text();
-            if (res.ok) {
-                logInsert('添加成功，服务器返回: ' + text);
-                await fetchAndRender();
-            } else {
-                logInsert('添加失败: ' + res.status + ' ' + text);
-                alert('添加失败：' + text);
-            }
-        } catch (e) {
-            logInsert('请求异常：' + e);
-            alert('请求异常：' + e);
-        }
-    });
-
-    document.getElementById('clearInsert').addEventListener('click', () => {
-        document.getElementById('username').value = '';
-        document.getElementById('password').value = '';
-        document.getElementById('host').value = '';
-        document.getElementById('port').value = '';
-        document.getElementById('database').value = '';
-        insertLog.textContent = '';
-    });
-
-    // 根据 type 动态更新“数据库/服务名”标签
-    document.getElementById('type').addEventListener('change', (e) => {
-        const t = e.target.value;
-        const label = document.getElementById('db-or-service-label');
-        const input = document.getElementById('database');
-        if (t === 'ORACLE') {
-            label.textContent = 'Service Name (Oracle)';
-            input.placeholder = 'orcl (若不填将使用默认)';
-        } else {
-            label.textContent = 'Database';
-            input.placeholder = '数据库名';
-        }
-    });
-
-    // Execute (你提供的流式读取代码，略做适配)
-    (function setupExecute(){
+        // execute area dom
         const btn = document.getElementById('btn');
         const clearBtn = document.getElementById('clear');
         const msgEl = document.getElementById('message');
@@ -290,27 +217,232 @@
         const ctypeEl = document.getElementById('ctype');
         const baseUrlInput = document.getElementById('baseUrl');
 
+        const schemaRow = document.getElementById('schema-row');
+        const schemaInput = document.getElementById('schemaName');
+
+
+        // 显示/隐藏卡片
+        showInsertBtn.onclick = () => { insertCard.style.display='block'; executeCard.style.display='none'; scrollToTop(); }
+        showExecuteBtn.onclick = () => { executeCard.style.display='block'; insertCard.style.display='none'; scrollToTop(); }
+        refreshListBtn.onclick = fetchAndRender;
+        refreshSidebar.onclick = fetchAndRender;
+
+        function scrollToTop(){ window.scrollTo({top:0,behavior:'smooth'}); }
+
+        // 根据类型调整第三个字段标签/默认端口
+        function applyTypeDefaults() {
+            const t = typeSel.value;
+            if (t === 'MYSQL') {
+                thirdLabel.textContent = 'Database';
+                if (!portEl.value) portEl.value = 3306;
+                thirdField.placeholder = 'database';
+                schemaRow.style.display = 'none';
+                schemaInput.value = '';
+            } else if (t === 'ORACLE') {
+                thirdLabel.textContent = 'ServiceName';
+                if (!portEl.value) portEl.value = 1521;
+                thirdField.placeholder = 'serviceName (默认：orcl)';
+                schemaRow.style.display = 'none';
+                schemaInput.value = '';
+            } else { // SQLSERVER
+                thirdLabel.textContent = 'Database / Schema';
+                if (!portEl.value) portEl.value = 1433;
+                thirdField.placeholder = 'database (schema 默认 dbo)';
+                schemaRow.style.display = 'block';
+                if (!schemaInput.value) schemaInput.value = 'dbo';
+            }
+        }
+        typeSel.addEventListener('change', applyTypeDefaults);
+        // 初始化
+        applyTypeDefaults();
+
+        // 重置表单
+        resetBtn.addEventListener('click', () => {
+            form.reset();
+            typeSel.value = 'MYSQL';
+            usernameEl.value = ''; passwordEl.value=''; hostEl.value=''; portEl.value='';
+            thirdField.value = '';
+            schemaInput.value = '';
+            applyTypeDefaults();
+            insertResult.textContent = '';
+        });
+
+        // 组装请求体并 POST 到 /insert
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            insertResult.textContent = '';
+            const t = typeSel.value;
+            const username = usernameEl.value.trim();
+            const password = passwordEl.value;
+            const host = hostEl.value.trim() || '127.0.0.1';
+            const port = parseInt(portEl.value) || (t==='MYSQL'?3306:(t==='ORACLE'?1521:1433));
+            const third = thirdField.value.trim();
+
+            // 组装对象：要符合后端的类字段名
+            let bodyObj = { type: t, username, password, host, port };
+
+            if (t === 'MYSQL') {
+                bodyObj.database = third || '';
+            } else if (t === 'ORACLE') {
+                bodyObj.serviceName = third || 'orcl';
+            } else if (t === 'SQLSERVER') {
+                bodyObj.database = third || '';
+                // 显式传 schemaName（若用户未填写，使用 'dbo'）
+                const s = (schemaInput.value || '').trim();
+                bodyObj.schemaName = s ? s : 'dbo';
+                // 如果用户在 third 填写了 schema，我们不会覆盖 schemaName（SQLServer 的 third 既可做 database）
+                // 若用户填了 database，保留，若填的是 schema 则需要手动修改，这里保持简单：如果 third 不为空，视为 database。
+                // if (third) {
+                //     bodyObj.database = third;
+                //     delete bodyObj.schemaName; // 让后端默认处理 schemaName（它在类中已有默认）
+                // }
+            }
+
+            // 移除 undefined 字段
+            Object.keys(bodyObj).forEach(k => bodyObj[k]===undefined && delete bodyObj[k]);
+
+            try {
+                const res = await fetch(API_BASE + '/insert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyObj)
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    insertResult.textContent = `错误: ${res.status} ${txt}`;
+                    insertResult.style.color = '#ff8080';
+                    return;
+                }
+                const data = await res.text(); // 你后端 InsertConn 返回 int（看起来是 id 或 影响行数）
+                insertResult.textContent = '插入成功，返回：' + data;
+                insertResult.style.color = '#9ef08a';
+                // 刷新列表
+                setTimeout(fetchAndRender, 500);
+                form.reset();
+                applyTypeDefaults();
+            } catch (err) {
+                insertResult.textContent = '请求失败: ' + err;
+                insertResult.style.color = '#ff8080';
+            }
+        });
+
+        // 获取并渲染连接列表
+        async function fetchAndRender() {
+            tbody.innerHTML = '<tr><td colspan="7" class="muted">加载中...</td></tr>';
+            try {
+                const res = await fetch(API_BASE + '/list');
+                if (!res.ok) {
+                    const t = await res.text();
+                    tbody.innerHTML = `<tr><td colspan="7" class="muted">错误 ${res.status}: ${t}</td></tr>`;
+                    return;
+                }
+                const list = await res.json();
+                if (!Array.isArray(list) || list.length===0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="muted">无连接记录</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = '';
+                list.forEach(item => {
+                    const tr = document.createElement('tr');
+                    const id = item.id === undefined ? '' : item.id;
+                    const type = item.type || '';
+                    const username = item.username || '';
+                    const host = item.host || '';
+                    const port = item.port || '';
+                    const database = item.database || item.serviceName || '';
+                    const schema = item.schemaName || '';
+                    tr.innerHTML = `
+                        <td>${id}</td>
+                        <td>${type}</td>
+                        <td>${username}</td>
+                        <td>${host}</td>
+                        <td>${port}</td>
+                        <td>${database}</td>
+                        <td>${schema}</td>
+                        <td class="actions">
+                            <button onclick="connectById('${type}', ${id})">连接</button>
+                            <button onclick="copyConn(${id})">复制</button>
+                            <button onclick="deleteConn('${type}', ${id})">删除</button>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="7" class="muted">请求异常: ${err}</td></tr>`;
+            }
+        }
+        // 初次加载
+        fetchAndRender();
+
+        // 全局函数供 table button 使用（因为按钮 onclick 使用全局函数）
+        window.connectById = async function(type, id) {
+            if (!id) { alert('该条记录没有 id，无法连接'); return; }
+            try {
+                const res = await fetch(`${API_BASE}/connect?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+                const text = await res.text();
+                alert(text);
+            } catch (e) {
+                alert('请求出错：' + e);
+            }
+        };
+
+        window.deleteConn = async function(type, id) {
+            if (!id) { alert('该条记录没有 id，无法删除'); return; }
+            if (!confirm('确认删除 id=' + id + ' ?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/delete?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, { method:'DELETE' });
+                if (!res.ok) {
+                    const t = await res.text();
+                    alert('删除失败: ' + res.status + ' ' + t);
+                } else {
+                    const data = await res.text();
+                    alert('删除返回：' + data);
+                    fetchAndRender();
+                }
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
+        };
+
+        window.copyConn = function(id) {
+            // 简单从表里找到该行并将 JSON 复制到剪贴板（便于复用）
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const target = rows.find(r => r.firstElementChild && r.firstElementChild.textContent == String(id));
+            if (!target) { alert('找不到对应行'); return; }
+            const tds = target.querySelectorAll('td');
+            const obj = {
+                id: tds[0].textContent,
+                type: tds[1].textContent,
+                username: tds[2].textContent,
+                host: tds[3].textContent,
+                port: tds[4].textContent,
+                databaseOrService: tds[5].textContent,
+                schemaName: tds[6].textContent
+            };
+            navigator.clipboard?.writeText(JSON.stringify(obj, null, 2)).then(()=> alert('已复制到剪贴板'), ()=> alert('复制失败'));
+        };
+
+        // ---------------- Execute 面板逻辑（基于你之前的实现）
         function log(...args){
             const t = new Date().toLocaleTimeString();
-            logEl.textContent += `[${t}] ` + args.join(' ') + '\n';
+            logEl.value += `[${t}] ` + args.join(' ') + '\n';
             logEl.scrollTop = logEl.scrollHeight;
         }
-
         clearBtn.onclick = () => {
             sqlEl.textContent = '(尚无内容)';
             imgEl.src = '';
-            logEl.textContent = '';
+            logEl.value = '';
         };
 
         btn.onclick = async () => {
             sqlEl.textContent = '(等待响应...)';
             imgEl.src = '';
-            logEl.textContent = '';
+            logEl.value = '';
 
             const body = msgEl.value;
             const contentType = ctypeEl.value;
-            const endpoint = `${apiBase}/execute`;
-
+            const base = baseUrlInput.value || 'http://localhost:8080';
+            const endpoint = base.replace(/\/$/, '') + '/v1/api/db/execute';
 
             log('开始请求', endpoint);
             try{
@@ -356,7 +488,7 @@
                             if (msg.type === 'markdown') {
                                 sqlEl.textContent = msg.content;
                             } else if (msg.type === 'image') {
-                                const content = msg.content;
+                                const content = msg.content || '';
                                 if (!content) {
                                     log('图片 content 为空');
                                     imgEl.src = '';
@@ -365,9 +497,9 @@
                                 } else if (content.startsWith('http') || content.startsWith('https')) {
                                     imgEl.src = content;
                                 } else if (content.startsWith('/')) {
-                                    imgEl.src = apiBase.replace(/\/v1\/api\/db$/, '') + content;
+                                    imgEl.src = base.replace(/\/$/, '') + content;
                                 } else {
-                                    imgEl.src = apiBase + '/execute/image/' + content;
+                                    imgEl.src = base.replace(/\/$/, '') + '/v1/api/db/execute/image/' + content;
                                 }
                             } else {
                                 log('未知消息类型：', msg.type);
@@ -379,7 +511,6 @@
                     }
                 }
 
-                // 读取剩余缓冲（如果最后一行没有换行）
                 if (buf.trim()) {
                     try{
                         const msg = JSON.parse(buf.trim());
@@ -399,19 +530,8 @@
                 sqlEl.textContent = '请求失败：' + err;
             }
         };
+
     })();
-
-    // 初始化
-    document.getElementById('refreshList').addEventListener('click', fetchAndRender);
-    document.addEventListener('DOMContentLoaded', () => {
-        // 如果页面不是从同一域名服务 API，可以把 apiBase 的文本改成正确地址
-        fetchAndRender();
-        // 触发 type 的初始显示
-        document.getElementById('type').dispatchEvent(new Event('change'));
-    });
-
-    // 暴露 connectFromRow 到全局（供 table 的 onclick 使用）
-    window.connectFromRow = connectFromRow;
 </script>
 </body>
 </html>

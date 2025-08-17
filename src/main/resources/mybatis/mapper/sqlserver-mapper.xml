@@ -7,12 +7,14 @@
 
     <!-- 结果映射，把列名映射到实体属性 -->
     <resultMap id="SqlserverConnMap" type="com.cysds.domain.entity.SqlServerConnectionEntity">
+        <result property="id"       column="id" />
         <result property="type"     column="type" />
         <result property="username" column="username" />
         <result property="password" column="password" />
         <result property="host"     column="host" />
         <result property="port"     column="port" />
         <result property="database" column="database_name" />
+        <result property="schemaName"   column="schema_name" />
     </resultMap>
 
     <!-- 插入，生成主键后回填到 entity.id -->
@@ -21,29 +23,32 @@
             useGeneratedKeys="true"
             keyProperty="id">
         INSERT INTO tb_sqlserver_conn
-            (type, username, password, host, port, database_name)
+            (type, username, password, host, port, database_name, schema_name)
         VALUES
             (#{type},
              #{username},
              #{password},
              #{host},
              #{port},
-             #{database})
+             #{database},
+             #{schemaName})
     </insert>
 
     <!-- 查询所有 -->
     <select id="ListSqlserverConn"
             resultMap="SqlserverConnMap">
         SELECT
+            id,
             type,
             username,
             host,
             port,
-            database_name
+            database_name,
+            schema_name
         FROM tb_sqlserver_conn
     </select>
 
-    <select id="getSqlserverConnByUserAndDb"
+    <select id="getSqlserverConnById"
             resultMap="SqlserverConnMap"
             parameterType="map">
         SELECT
@@ -52,10 +57,14 @@
             password,
             host,
             port,
-            database_name
+            database_name,
+            schema_name
         FROM tb_sqlserver_conn
-        WHERE username = #{username}
-          AND database_name = #{databaseName}
+        WHERE id = #{id}
     </select>
+
+    <delete id="DeleteSqlserverConnById">
+        DELETE FROM tb_sqlserver_conn WHERE id = #{id}
+    </delete>
 
 </mapper>

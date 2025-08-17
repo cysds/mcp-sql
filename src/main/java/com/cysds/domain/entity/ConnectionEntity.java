@@ -29,6 +29,7 @@ import lombok.NoArgsConstructor;
 public abstract class ConnectionEntity {
     public enum DbType { MYSQL, ORACLE, SQLSERVER }
 
+    protected int id;
     protected DbType type;
     protected String username;
     protected String password;

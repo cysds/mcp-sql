@@ -7,6 +7,7 @@
 
     <!-- 结果映射，把列名映射到实体属性 -->
     <resultMap id="OracleConnMap" type="com.cysds.domain.entity.OracleConnectionEntity">
+        <result property="id"       column="id" />
         <result property="type"     column="type" />
         <result property="username" column="username" />
         <result property="password" column="password" />
@@ -35,6 +36,7 @@
     <select id="ListOracleConn"
             resultMap="OracleConnMap">
         SELECT
+            id,
             type,
             username,
             host,
@@ -43,7 +45,7 @@
         FROM tb_oracle_conn
     </select>
 
-    <select id="getOracleConnByUserAndDb"
+    <select id="getOracleConnById"
             resultMap="OracleConnMap"
             parameterType="map">
         SELECT
@@ -54,8 +56,12 @@
             port,
             service_name
         FROM tb_oracle_conn
-        WHERE username = #{username}
-          AND service_name = #{serviceName}
+        WHERE id = #{id}
     </select>
+
+
+    <delete id="DeleteOracleConnById">
+        DELETE FROM tb_oracle_conn WHERE id = #{id}
+    </delete>
 
 </mapper>
