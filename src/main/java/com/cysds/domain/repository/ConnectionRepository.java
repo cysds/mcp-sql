@@ -23,6 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import javax.annotation.Resource;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +33,7 @@ import java.nio.file.StandardOpenOption;
 import java.sql.*;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -113,7 +111,7 @@ public class ConnectionRepository {
                 {dbDetails}
             DOCUMENTS:
                 {documents}
-            注意：
+            注意：-
             1. 要注意不同数据库类型的方言限制，如ORACLE不允许使用limit子句等。
             2. 生成的SQL语句请一定要用```sql```包裹起来。
                如:
@@ -122,7 +120,7 @@ public class ConnectionRepository {
                ```
             3. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
             4. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
-            5. 请直接输出SQL语句，不要包含任何其他文字。
+            5. 请直接输出SQL语句，不要包含任何其他文字，注意表名的层次结构要正确。
             """;
 
         Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
@@ -251,13 +249,19 @@ public class ConnectionRepository {
      * @return 脚本的标准输出内容
      * @throws Exception 如果执行脚本时发生异常则抛出
      */
-    private String runPythonScript(String script) throws Exception {
+    public String runPythonScript(String script) throws Exception {
         Path tmpDir = Files.createTempDirectory("draw-");
+        ExecutorService outputReaderExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "python-output-reader");
+            t.setDaemon(true);
+            return t;
+        });
+
         try {
             Path scriptPath = tmpDir.resolve("script.py");
             Files.writeString(scriptPath, script, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-            // 选择 python 可执行名
+            // 选择 python 可执行名（Windows 上通常为 "python"）
             String pythonCmd = "python3";
             if (System.getProperty("os.name").toLowerCase().contains("win")) {
                 pythonCmd = "python";
@@ -265,43 +269,71 @@ public class ConnectionRepository {
 
             ProcessBuilder pb = new ProcessBuilder(pythonCmd, scriptPath.getFileName().toString());
             pb.directory(tmpDir.toFile());
+            // 合并 stderr 到 stdout，统一读取
             pb.redirectErrorStream(true);
 
             Process process = pb.start();
 
-            // 读取并保留输出（以便调试报错时返回）
-            String output;
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                output = reader.lines().collect(Collectors.joining(System.lineSeparator()));
-            }
+            // 异步读取输出（避免阻塞）
+            Future<String> outputFuture = outputReaderExecutor.submit(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    // 持续读取直到流结束
+                    return reader.lines().collect(Collectors.joining(System.lineSeparator()));
+                } catch (IOException ioe) {
+                    // 将异常抛出到 Future 的 ExecutionException 中
+                    throw ioe;
+                }
+            });
 
-            boolean finished = process.waitFor(30, TimeUnit.SECONDS); // 超时 30s，可按需调整
+            // 等待进程结束（30s 超时），主线程不会被 outputReader 阻塞
+            boolean finished = process.waitFor(30, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 throw new RuntimeException("Python 脚本执行超时（>30s）");
             }
-            if (process.exitValue() != 0) {
-                throw new RuntimeException("Python 脚本执行失败，退出码：" + process.exitValue() + "\n输出：\n" + output);
+
+            int exit = process.exitValue();
+            String output;
+            try {
+                // 给输出读取一个短超时，避免在极端情况下 hang
+                output = outputFuture.get(5, TimeUnit.SECONDS);
+            } catch (TimeoutException te) {
+                output = "（读取输出超时）";
+            } catch (ExecutionException ee) {
+                // 获取真实原因
+                Throwable cause = ee.getCause();
+                output = "（读取输出失败: " + (cause == null ? ee.toString() : cause.toString()) + "）";
             }
 
-            // 4) 读取 result.png
+            if (exit != 0) {
+                throw new RuntimeException("Python 脚本执行失败，退出码：" + exit + "\n输出：\n" + output);
+            }
+
+            // 检查 result.png
             Path resultPng = tmpDir.resolve("result.png");
             if (!Files.exists(resultPng)) {
                 throw new RuntimeException("Python 脚本未生成 result.png，脚本输出：\n" + output);
             }
+
             byte[] imageBytes = Files.readAllBytes(resultPng);
 
-            // 5) 存缓存并安排清理
+            // 缓存并安排清理
             String id = UUID.randomUUID().toString();
             imageStore.put(id, imageBytes);
-            // 5 分钟后清理，避免长期占用内存；可按需调整
-            scheduler.schedule(() -> imageStore.remove(id), 5, TimeUnit.MINUTES);
+
+            // 5 分钟后自动清理（按需调整）
+            scheduler.schedule(() -> {
+                imageStore.remove(id);
+                log.debug("Removed cached image id={}", id);
+            }, 5, TimeUnit.MINUTES);
 
             return id;
 
         } finally {
-            // 清理临时目录（递归删除）
+            // 关闭用于读取输出的 executor（立即停止）
+            outputReaderExecutor.shutdownNow();
             try {
+                // 递归删除临时目录
                 deleteRecursively(tmpDir);
             } catch (Exception e) {
                 log.warn("删除临时目录失败: {}", tmpDir, e);
