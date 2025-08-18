@@ -229,8 +229,8 @@ public class ConnectionRepository {
     }
 
 
-    public int DeleteConnById(int id) {
-        return daoMap.get(dbType).DeleteConnById(id);
+    public int DeleteConnById(ConnectionEntity.DbType Type, int id) {
+        return daoMap.get(Type).DeleteConnById(id);
     }
 
     /**

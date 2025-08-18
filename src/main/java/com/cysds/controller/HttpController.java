@@ -66,7 +66,7 @@ public class HttpController {
 
     @DeleteMapping("/delete")
     public int delete(@RequestParam ConnectionEntity.DbType type, @RequestParam int id) {
-        return connectionRepository.DeleteConnById(id);
+        return connectionRepository.DeleteConnById(type, id);
     }
 
     @PostMapping("/insert")
