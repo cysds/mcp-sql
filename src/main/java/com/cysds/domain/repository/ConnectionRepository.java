@@ -101,80 +101,8 @@ public class ConnectionRepository {
     }
 
     public ResponseEntity<StreamingResponseBody> execute(String message) throws Exception {
-        String dbDetails = getAllTablesStructureAsString();
-        String SYSTEM_PROMPT = """
-            你是一位专业的 SQL 语句编写专家。
-            请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句。
-            DATABASE TYPE:
-                {dbType}
-            DATABASE DETAILS:
-                {dbDetails}
-            DOCUMENTS:
-                {documents}
-            注意：-
-            1. 要注意不同数据库类型的方言限制，如ORACLE不允许使用limit子句等。
-            2. 生成的SQL语句请一定要用```sql```包裹起来。
-               如:
-               ```sql
-               select * from user;
-               ```
-            3. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
-            4. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
-            5. 请直接输出SQL语句，不要包含任何其他文字，注意表名的层次结构要正确。
-            """;
-
-        Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
-                .createMessage(Map.of(
-                        "dbType", dbType.toString(),
-                        "documents", message,
-                        "dbDetails", dbDetails));
-        ChatResponse sqlChatResponse = chatModel
-                .call(new Prompt(sqlQueryMessages));
-
-        String content = sqlChatResponse.getResult().getOutput().getText();
-        String sql = extractText("sql", content);
-        if (sql == null || sql.isBlank()) {
-            throw new IllegalArgumentException("无法从大模型生成 SQL 语句");
-        }
-        log.info("大模型生成 SQL 语句成功：{}", sql);
-        // 去除末尾分号
-        sql = sql.replaceAll(";\\s*$", "");
-
-        // 执行查询
-        List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
-
-        String jsonData = new ObjectMapper().writeValueAsString(dbResults);
-
-        String DRAW_PROMPT = """
-           你是一位数据分析和可视化专家。
-           下面是我查询得到的数据(JSON格式)：
-           {data}
-           以下是我的需求：
-           {question}
-           注意：
-           1. 需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
-           2. 我的标签中可能含有中文，你在绘图时一定要加上这一行:plt.rcParams['font.sans-serif'] = ['SimHei'];
-           3. 如果在bar中出现数字，一定将它转成字符串，如 sorted_df['Cno'].astype(str),  # 转成 str
-           4. 请在脚本末尾，使用 Matplotlib 将绘图保存到当前工作目录下的文件 result.png，格式为 PNG，不要调用 show()。
-           5. 脚本不要打印其他任何文本或日志，也不要写任何注释，只输出纯粹的 PNG 二进制数据。
-           6. 请直接输出Python脚本，不要包含任何其他文字。
-           7. 生成的python脚本请一定要用```python```包裹起来。
-           """;
-        Message scriptMessages = new SystemPromptTemplate(DRAW_PROMPT)
-                .createMessage(Map.of(
-                        "question", message,
-                        "data", jsonData));
-        ChatResponse scriptChatResponse = chatModel.call(new Prompt(scriptMessages));
-
-        String pythonScript = extractText("python",scriptChatResponse.getResult().getOutput().getText());
-        assert pythonScript != null;
-
-        // 写脚本到临时目录并以该目录为工作目录执行
-        String id = runPythonScript(pythonScript);
-        String sqlMarkdown = "```sql\n" + sql + "\n```";
-
-        ExecuteResult res = new ExecuteResult(sqlMarkdown, id);
-
+        ExecuteResult res = callBigModelAndRun(message);
+        String id = res.getImageId();
         // 组装返回结果
         try {
             StreamingResponseBody body = (OutputStream out) -> {
@@ -242,6 +170,83 @@ public class ConnectionRepository {
         return dsRouter.getConnection(connectionEntity);
     }
 
+    private ExecuteResult callBigModelAndRun(String message) throws Exception {
+        String dbDetails = getAllTablesStructureAsString();
+        String SYSTEM_PROMPT = """
+                你是一位专业的 SQL 语句编写专家。
+                请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句。
+                DATABASE TYPE:
+                    {dbType}
+                DATABASE DETAILS:
+                    {dbDetails}
+                DOCUMENTS:
+                    {documents}
+                注意：-
+                1. 要注意不同数据库类型的方言限制，如ORACLE不允许使用limit子句等。
+                2. 生成的SQL语句请一定要用```sql```包裹起来。
+                   如:
+                   ```sql
+                   select * from user;
+                   ```
+                3. 我只会让你生成有关数据库查询的语句，如果用户有增删改要求，请直接拒绝。
+                4. documents中会带有关于生成图表的请求，请忽略，你只需要生成SQL语句即可。
+                5. 请直接输出SQL语句，不要包含任何其他文字，注意表名的层次结构要正确。
+                """;
+
+        Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
+                .createMessage(Map.of(
+                        "dbType", dbType.toString(),
+                        "documents", message,
+                        "dbDetails", dbDetails));
+        ChatResponse sqlChatResponse = chatModel
+                .call(new Prompt(sqlQueryMessages));
+
+        String content = sqlChatResponse.getResult().getOutput().getText();
+        String sql = extractText("sql", content);
+        if (sql == null || sql.isBlank()) {
+            throw new IllegalArgumentException("无法从大模型生成 SQL 语句");
+        }
+        log.info("大模型生成 SQL 语句成功：\n{}", sql);
+        // 去除末尾分号
+        sql = sql.replaceAll(";\\s*$", "");
+
+        // 执行查询
+        List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
+
+        String jsonData = new ObjectMapper().writeValueAsString(dbResults);
+
+        String DRAW_PROMPT = """
+                你是一位数据分析和可视化专家。
+                下面是我查询得到的数据(JSON格式)：
+                {data}
+                以下是我的需求：
+                {question}
+                注意：
+                1. 需求中带有数据库查询的请求，请忽略，你只需要根据我的数据和数据分析需求生成Python脚本即可。
+                2. 我的标签中可能含有中文，你在绘图时一定要加上这一行:plt.rcParams['font.sans-serif'] = ['SimHei'];
+                3. 如果在bar中出现数字，一定将它转成字符串，如 sorted_df['Cno'].astype(str),  # 转成 str
+                4. 请在脚本末尾，使用 Matplotlib 将绘图保存到当前工作目录下的文件 result.png，格式为 PNG，不要调用 show()。
+                5. 脚本不要打印其他任何文本或日志，也不要写任何注释，只输出纯粹的 PNG 二进制数据。
+                6. 请直接输出Python脚本，不要包含任何其他文字。
+                7. 生成的python脚本请一定要用```python```包裹起来。
+                """;
+        Message scriptMessages = new SystemPromptTemplate(DRAW_PROMPT)
+                .createMessage(Map.of(
+                        "question", message,
+                        "data", jsonData));
+        ChatResponse scriptChatResponse = chatModel.call(new Prompt(scriptMessages));
+
+        String pythonScript = extractText("python", scriptChatResponse.getResult().getOutput().getText());
+        assert pythonScript != null;
+
+        log.info("大模型生成 Python 脚本成功：\n{}", pythonScript);
+        // 写脚本到临时目录并以该目录为工作目录执行
+        String id = runPythonScript(pythonScript);
+        String sqlMarkdown = "```sql\n" + sql + "\n```";
+
+        return new ExecuteResult(sqlMarkdown, id);
+    }
+
     /**
      * 将 script 内容写入临时 .py 文件并执行，返回脚本的标准输出内容。
      *
@@ -249,7 +254,7 @@ public class ConnectionRepository {
      * @return 脚本的标准输出内容
      * @throws Exception 如果执行脚本时发生异常则抛出
      */
-    public String runPythonScript(String script) throws Exception {
+    private String runPythonScript(String script) throws Exception {
         Path tmpDir = Files.createTempDirectory("draw-");
         ExecutorService outputReaderExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "python-output-reader");

@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
 @RequestMapping("/v1/api/db")
 public class HttpController {
 
-    private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
-
     @Resource
     private ConnectionRepository connectionRepository;
+
+    private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
     @Autowired
     public HttpController(List<ConnectionDao<?>> daos) {
