@@ -12,7 +12,8 @@
 
 
 #### 界面如下
-![img.png](img.png)
+<img width="2560" height="1272" alt="Snipaste_2025-08-25_17-45-50" src="https://github.com/user-attachments/assets/82726c32-593d-4de4-a66b-06117c20c2ac" />
+
 
 #### 保存连接的表结构
 ```sql
