@@ -51,7 +51,6 @@ public class AppTest {
         sqlServerConnectionEntity.setPassword("1622nuaa");
         sqlServerConnectionEntity.setSchemaName("course");
 
-        val connection = connectionRepository.buildConnection(sqlServerConnectionEntity);
 
     }
 }

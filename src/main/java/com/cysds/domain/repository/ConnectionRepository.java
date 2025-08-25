@@ -4,6 +4,7 @@ import com.cysds.dao.ConnectionDao;
 import com.cysds.domain.entity.ConnectionEntity;
 import com.cysds.domain.entity.ExecuteResult;
 import com.cysds.domain.entity.SqlServerConnectionEntity;
+import com.cysds.domain.job.ConnectionManager;
 import com.cysds.domain.router.DynamicDataSourceRouter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
@@ -58,6 +59,9 @@ public class ConnectionRepository {
     @Resource
     private ObjectMapper objectMapper;
 
+    @Resource
+    private ConnectionManager connectionManager;
+
     private final EnumMap<ConnectionEntity.DbType, ConnectionDao<?>> daoMap;
 
     @Autowired
@@ -68,23 +72,16 @@ public class ConnectionRepository {
         }
     }
 
-    private HikariDataSource dataSource; //HikariDataSource
-
-    @Resource
-    private JdbcTemplate jdbcTemplate;
-
     // 图片内存缓存（id -> bytes）
     private final Map<String, byte[]> imageStore = new ConcurrentHashMap<>();
     // 定时清理线程池
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    private ConnectionEntity.DbType dbType;
-
-    private String schemaName = "dbo";
-
-    public Connection connectById(ConnectionEntity.DbType type, int id) throws SQLException {
+    /**
+     *  通过数据库类型和id建立jdbc连接
+     */
+    public String connectById(ConnectionEntity.DbType type, int id) throws SQLException {
         ConnectionDao<?> dao = daoMap.get(type);
-        dbType = type;
         if (dao == null) {
             throw new IllegalArgumentException("unsupported db type: " + type);
         }
@@ -92,16 +89,14 @@ public class ConnectionRepository {
         if (entity == null) {
             throw new IllegalArgumentException(String.format("未找到 username=%s, database=%s 的连接记录"));
         }
-        log.info("连接数据库成功,connectionEntity={}", entity);
-        if(type == ConnectionEntity.DbType.SQLSERVER){
-            SqlServerConnectionEntity sqlServerConnectionEntity = (SqlServerConnectionEntity) entity;
-            schemaName = sqlServerConnectionEntity.getSchemaName();
-        }
-        return buildConnection(entity);
+
+        log.info("开始创建连接,connectionEntity={}", entity);
+        return connectionManager.createConnection(entity, dsRouter);
     }
 
-    public ResponseEntity<StreamingResponseBody> execute(String message) throws Exception {
-        ExecuteResult res = callBigModelAndRun(message);
+    public ResponseEntity<StreamingResponseBody> execute(String message, String token) throws Exception {
+        ConnectionManager.ConnectionState state = connectionManager.getConnection(token);
+        ExecuteResult res = callBigModelAndRun(message, state);
         String id = res.getImageId();
         // 组装返回结果
         try {
@@ -149,29 +144,43 @@ public class ConnectionRepository {
      * 添加数据库连接
      * @param connectionEntity 数据库连接对象
      */
-    public int InsertConn(ConnectionEntity connectionEntity) {
-        return daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
+    public int InsertConn(ConnectionEntity connectionEntity) throws SQLException {
+        // 先测试连接
+        try (HikariDataSource testConnection = testConnection(connectionEntity)) {
+            if (testConnection == null || testConnection.isClosed()) {
+                throw new SQLException("数据库连接失败，未保存连接信息");
+            }
+        } catch (Exception e) {
+            throw new SQLException("数据库连接失败: " + e.getMessage(), e);
+        }
 
+        // 能正常连通才往下执行插入
+        return daoMap.get(connectionEntity.getType()).InsertConn(connectionEntity);
     }
 
-
+    /**
+     * 删除连接记录
+     */
     public int DeleteConnById(ConnectionEntity.DbType Type, int id) {
         return daoMap.get(Type).DeleteConnById(id);
     }
 
     /**
-     * 建立jdbc连接
-     * @param connectionEntity 连接实体
+     *  断开连接
      */
-    public Connection buildConnection(ConnectionEntity connectionEntity) throws SQLException {
-        // 由路由器内部根据 mysqlConnectionEntity.getType() 选用  MysqlDataSourceService
-        dataSource = dsRouter.createDataSource(connectionEntity);
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
-        return dsRouter.getConnection(connectionEntity);
+    public boolean disconnect(String token) throws SQLException {
+        return connectionManager.removeConnection(token);
     }
 
-    private ExecuteResult callBigModelAndRun(String message) throws Exception {
-        String dbDetails = getAllTablesStructureAsString();
+    /**
+     *用于在建立连接前验证是否可以连接
+     */
+    public HikariDataSource testConnection(ConnectionEntity connectionEntity) throws SQLException {
+        return  dsRouter.createDataSource(connectionEntity);
+    }
+
+    private ExecuteResult callBigModelAndRun(String message, ConnectionManager.ConnectionState state) throws Exception {
+        String dbDetails = getAllTablesStructureAsString(state);
         String SYSTEM_PROMPT = """
                 你是一位专业的 SQL 语句编写专家。
                 请参考以下数据库表结构，并根据我的描述生成正确、高效的 SQL 语句。
@@ -195,7 +204,7 @@ public class ConnectionRepository {
 
         Message sqlQueryMessages = new SystemPromptTemplate(SYSTEM_PROMPT)
                 .createMessage(Map.of(
-                        "dbType", dbType.toString(),
+                        "dbType", state.getDbType().toString(),
                         "documents", message,
                         "dbDetails", dbDetails));
         ChatResponse sqlChatResponse = chatModel
@@ -211,7 +220,7 @@ public class ConnectionRepository {
         sql = sql.replaceAll(";\\s*$", "");
 
         // 执行查询
-        List<Map<String, Object>> dbResults = jdbcTemplate.queryForList(sql);
+        List<Map<String, Object>> dbResults = state.getJdbcTemplate().queryForList(sql);
 
         String jsonData = new ObjectMapper().writeValueAsString(dbResults);
 
@@ -368,10 +377,10 @@ public class ConnectionRepository {
      *
      * @return 表结构描述的 String
      */
-    public String getAllTablesStructureAsString() {
+    public String getAllTablesStructureAsString(ConnectionManager.ConnectionState state) {
         StringBuilder sb = new StringBuilder();
 
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = state.getDataSource().getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             String product = meta.getDatabaseProductName() == null ? "" :
                     meta.getDatabaseProductName().toLowerCase(java.util.Locale.ROOT);
@@ -391,7 +400,7 @@ public class ConnectionRepository {
             } else if (product.contains("microsoft") || product.contains("sql server")) {
                 catalogForMeta = conn.getCatalog(); // database name
                 try {
-                    schemaForMeta = schemaName;
+                    schemaForMeta = state.getSchemaName();
                 } catch (Throwable ignored) {}
                 // 如果 schema 为空，允许为 null（JDBC 会匹配所有）
                 if (schemaForMeta != null && schemaForMeta.isBlank()) schemaForMeta = null;

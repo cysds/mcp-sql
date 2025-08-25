@@ -12,8 +12,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import javax.annotation.Resource;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -48,19 +50,18 @@ public class HttpController {
     }
 
     @GetMapping("/connect")
-    public ResponseEntity<String> connect(
+    public ResponseEntity<Map<String, String>> connect(
             @RequestParam ConnectionEntity.DbType type,
             @RequestParam int id) {
-        try (Connection conn = connectionRepository.connectById(type, id)) {
-            if (conn.isValid(2)) {
-                return ResponseEntity.ok("连接成功！");
-            } else {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body("连接建立失败");
-            }
+        try {
+            String token = connectionRepository.connectById(type, id);
+            return ResponseEntity.ok(Map.of(
+                    "message", "连接成功！",
+                    "token", token
+            ));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("连接时发生异常: " + e.getMessage());
+                    .body(Map.of("error", "连接时发生异常: " + e.getMessage()));
         }
     }
 
@@ -70,12 +71,30 @@ public class HttpController {
     }
 
     @PostMapping("/insert")
-    public int insert(@RequestBody ConnectionEntity connectionEntity) {
+    public int insert(@RequestBody ConnectionEntity connectionEntity) throws SQLException {
         return connectionRepository.InsertConn(connectionEntity);
     }
 
     @PostMapping(value = "/execute", produces = "application/x-ndjson")
-    public ResponseEntity<StreamingResponseBody> execute(@RequestBody String message) throws Exception {
-        return connectionRepository.execute(message);
+    public ResponseEntity<StreamingResponseBody> execute(
+            @RequestBody Map<String, String> request) throws Exception {
+        String message = request.get("message");
+        String token = request.get("token");
+
+        if (token == null || token.trim().isEmpty()) {
+            throw new IllegalArgumentException("缺少token参数");
+        }
+
+        return connectionRepository.execute(message, token);
+    }
+
+    @DeleteMapping("/disconnect")
+    public ResponseEntity<String> disconnect(@RequestParam String token) throws SQLException {
+        boolean success = connectionRepository.disconnect(token);
+        if (success) {
+            return ResponseEntity.ok("断开连接成功");
+        } else {
+            return ResponseEntity.badRequest().body("连接不存在或已断开");
+        }
     }
 }

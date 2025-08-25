@@ -1,537 +1,992 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>数据库连接管理</title>
     <style>
-        :root{
-            --bg:#0f1113; --panel:#151718; --muted:#9aa3ab; --accent:#7c9cff;
-            --card:#121315; --border: rgba(255,255,255,0.04);
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        html,body{height:100%;margin:0;font-family: "Helvetica Neue", Arial, sans-serif;background:var(--bg);color:#e6eef8;}
-        .app{display:flex;height:100vh;}
-        .sidebar{
-            width:260px;background:linear-gradient(180deg,#0b0c0d,#0d0e10);padding:16px;border-right:1px solid var(--border);
-            box-sizing:border-box;overflow:auto;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .sidebar h2{margin:4px 0 16px;font-size:18px;color:var(--accent)}
-        .sidebar button{width:100%;padding:8px;border-radius:8px;border:0;background:rgba(255,255,255,0.04);color:var(--muted);cursor:pointer}
-        .main{flex:1;padding:20px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;overflow:auto}
-        .row{display:flex;gap:12px}
-        .card{background:var(--panel);padding:14px;border-radius:10px;border:1px solid var(--border);box-shadow: 0 2px 6px rgba(0,0,0,0.4)}
-        .card h3{margin:0 0 10px;font-size:16px;color:#dbe9ff}
-        form .form-row{display:flex;gap:8px;margin-bottom:8px}
-        label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
-        input[type="text"], input[type="number"], select, textarea{
-            width:100%;padding:8px;border-radius:6px;background:#0d1113;border:1px solid var(--border);color:#dbe9ff;box-sizing:border-box;
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 2560px;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
         }
-        table{width:100%;border-collapse:collapse;font-size:13px}
-        th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:left}
-        th{font-size:12px;color:var(--muted)}
-        .actions button{margin-right:6px;padding:6px 8px;border-radius:6px;border:0;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted)}
-        .muted{color:var(--muted);font-size:13px}
-        .logbox{height:160px;overflow:auto;background:#0b0d0f;padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-family:monospace;font-size:13px}
-        .btn-primary{background:var(--accent);color:#07102b;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
-        .small{font-size:12px;color:var(--muted)}
-        .flex-between{display:flex;justify-content:space-between;align-items:center}
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .connection-status {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 15px;
+            border-left: 4px solid #48bb78;
+            display: none;
+        }
+
+        .connection-status.connected {
+            display: block;
+        }
+
+        .connection-status.error {
+            border-left-color: #f56565;
+            background: #fed7d7;
+        }
+
+        .status-text {
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(245, 101, 101, 0.3);
+        }
+
+        .chat-area {
+            margin-top: 10px;
+            display: none;
+        }
+
+        .chat-area.active {
+            display: block;
+        }
+
+        .chat-container {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            height: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f7fafc;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.assistant {
+            background: white;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #a0aec0;
+        }
+
+        .close-btn:hover {
+            color: #2d3748;
+        }
+
+        .connection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .connection-item {
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+
+        .connection-item.selected {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .connection-left {
+            flex: 1;
+        }
+
+        .connection-name {
+            font-weight: 500;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .connection-details {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .delete-btn {
+            background: none;
+            border: 1px solid rgba(229,62,62,0.15);
+            color: #e53e3e;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            background: rgba(229,62,62,0.05);
+            transform: translateY(-2px);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .form-input:focus, .form-select:focus {
+            border-color: #667eea;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 2000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: #48bb78;
+        }
+
+        .notification.error {
+            background: #f56565;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
-<div class="app">
-    <div class="sidebar card">
-        <h2>数据库连接管理</h2>
-        <div class="small muted">固定 Base: <br><strong>http://localhost:8080/v1/api/db</strong></div>
-        <div style="height:12px"></div>
-        <button id="refresh-list">刷新连接列表</button>
-        <div style="height:10px"></div>
-        <button id="show-insert">添加连接</button>
-        <div style="height:8px"></div>
-        <button id="show-execute">执行 SQL / 接收流</button>
-        <div style="height:16px"></div>
-        <div class="small muted">提示：</div>
-        <ul class="small muted">
-            <li>插入时不要传 id（后端/数据库负责自增）</li>
-            <li>若端口留空会使用默认端口</li>
-            <li>Oracle 默认 serviceName = <code>orcl</code></li>
-            <li>SQLServer 默认 schemaName = <code>dbo</code></li>
-        </ul>
+<div class="container">
+    <div class="header">
+        <h1 class="title">数据库连接管理</h1>
+        <p class="subtitle">我们先从哪里开始呢？</p>
     </div>
 
-    <div class="main">
-        <!-- Insert Card -->
-        <div id="insert-card" class="card" style="display:none;">
-            <div class="flex-between">
-                <h3>添加连接</h3>
-                <div class="small muted">请选择类型并填写参数</div>
-            </div>
-            <form id="insert-form">
-                <div class="form-row">
-                    <div style="flex:1">
-                        <label>类型</label>
-                        <select id="conn-type" required>
-                            <option value="MYSQL">MYSQL</option>
-                            <option value="ORACLE">ORACLE</option>
-                            <option value="SQLSERVER">SQLSERVER</option>
-                        </select>
-                    </div>
-                    <div style="flex:1">
-                        <label>用户名</label>
-                        <input id="username" type="text" placeholder="用户名" required />
-                    </div>
-                    <div style="flex:1">
-                        <label>密码</label>
-                        <input id="password" type="text" placeholder="密码" />
-                    </div>
-                </div>
-
-                <div id="type-specific">
-                    <!-- MySQL / Oracle / SqlServer common fields will be here -->
-                    <div class="form-row">
-                        <div style="flex:1">
-                            <label>主机 (host)</label>
-                            <input id="host" type="text" placeholder="127.0.0.1" />
-                        </div>
-                        <div style="flex:1">
-                            <label>端口 (port)</label>
-                            <input id="port" type="number" placeholder="根据类型选择默认端口" />
-                        </div>
-                        <div style="flex:1">
-                            <label id="third-label">Database / Service / Schema</label>
-                            <input id="third-field" type="text" placeholder="数据库名 / serviceName / schemaName" />
-                        </div>
-                        <!-- 新增：仅 SQLServer 使用的 schemaName 行 -->
-                        <div id="schema-row" style="display:none;">
-                            <div style="flex:1">
-                                <label>schemaName (仅 SQLServer)</label>
-                                <input id="schemaName" type="text" placeholder="dbo" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display:flex;gap:8px;margin-top:8px">
-                    <button type="submit" class="btn-primary">添加连接</button>
-                    <button type="button" id="insert-reset">重置</button>
-                </div>
-                <div style="height:8px"></div>
-                <div id="insert-result" class="small muted"></div>
-            </form>
+    <div class="main-content">
+        <div class="connection-status" id="connectionStatus">
+            <div class="status-text" id="statusText">未连接</div>
         </div>
 
-        <!-- List Card -->
-        <div id="list-card" class="card">
-            <div class="flex-between">
-                <h3>连接列表</h3>
-                <div><button id="btn-refresh" class="">刷新</button></div>
-            </div>
-            <div style="height:8px"></div>
-            <table id="conn-table">
-                <thead>
-                <tr><th>id</th><th>type</th><th>username</th><th>host</th><th>port</th><th>database</th><th>schemaName</th><th>操作</th></tr>
-                </thead>
-                <tbody>
-                <tr><td colspan="7" class="muted">加载中...</td></tr>
-                </tbody>
-            </table>
+        <div class="button-group">
+            <button class="btn btn-primary" onclick="openDataSourceModal()">
+                <span class="btn-text">选择数据库连接</span>
+            </button>
+            <button class="btn btn-secondary" onclick="openAddConnectionModal()">
+                <span class="btn-text">添加连接</span>
+            </button>
+            <button class="btn btn-danger" onclick="disconnectDatabase()" id="disconnectBtn" style="display: none;">
+                <span class="btn-text">断开连接</span>
+            </button>
         </div>
 
-        <!-- Execute Card -->
-        <div id="execute-card" class="card" style="display:none;">
-            <h3>Execute（流式响应）</h3>
-            <div class="form-row">
-                <div style="flex:1">
-                    <label>消息（请求体）</label>
-                    <textarea id="message" rows="4" placeholder='输入 JSON 或其他请求体'></textarea>
-                </div>
-                <div style="width:200px">
-                    <label>Content-Type</label>
-                    <select id="ctype">
-                        <option value="application/json">application/json</option>
-                        <option value="text/plain">text/plain</option>
-                        <option value="application/x-ndjson">application/x-ndjson</option>
-                    </select>
-                    <div style="height:8px"></div>
-                    <label>Base URL（固定）</label>
-                    <input id="baseUrl" type="text" value="http://localhost:8080" />
-                </div>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:8px;">
-                <button id="btn" class="btn-primary">发送请求 / 开始流</button>
-                <button id="clear">清空</button>
-            </div>
-
-            <div style="display:flex;gap:12px;margin-top:12px;">
-                <div style="flex:1">
-                    <label>文本输出</label>
-                    <pre id="sql" class="logbox">(尚无内容)</pre>
-                    <div style="height:8px"></div>
-                    <label>日志</label>
-                    <textarea id="log" class="logbox" readonly></textarea>
-                </div>
-                <div style="width:1000px">
-                    <label>图片预览</label>
-                    <div style="height:500px;background:#060708;border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">
-                        <img id="img" style="max-width:100%;max-height:100%;display:block" />
+        <div class="chat-area" id="chatArea">
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message assistant">
+                        <strong>系统:</strong> 数据库连接成功！您现在可以开始查询数据了。
                     </div>
-
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="输入您的查询问题...">
+                    <button class="btn btn-primary" onclick="sendMessage()">发送</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- 数据源选择模态框 -->
+<div class="modal" id="dataSourceModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">选择数据库连接</h3>
+            <button class="close-btn" onclick="closeModal('dataSourceModal')">&times;</button>
+        </div>
+        <div class="connection-list" id="connectionList">
+            <!-- 连接列表将在这里动态生成 -->
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+            <button class="btn btn-primary" onclick="connectToDatabase()" id="connectBtn" disabled>连接</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加连接模态框 -->
+<div class="modal" id="addConnectionModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">添加数据库连接</h3>
+            <button class="close-btn" onclick="closeModal('addConnectionModal')">&times;</button>
+        </div>
+        <form id="addConnectionForm">
+            <div class="form-group">
+                <label class="form-label">数据库类型</label>
+                <select class="form-select" id="dbType" required>
+                    <option value="">请选择数据库类型</option>
+                    <option value="MYSQL">MySQL</option>
+                    <option value="SQLSERVER">SQL Server</option>
+                    <option value="ORACLE">Oracle</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">主机地址</label>
+                <input type="text" class="form-input" id="host" placeholder="localhost" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">端口</label>
+                <input type="number" class="form-input" id="port" placeholder="3306" required>
+            </div>
+            <div class="form-group" id="databaseGroup">
+                <label class="form-label">数据库名</label>
+                <input type="text" class="form-input" id="database" required>
+            </div>
+            <div class="form-group" id="serviceNameGroup" style="display: none;">
+                <label class="form-label">服务名(Service Name)</label>
+                <input type="text" class="form-input" id="serviceName" placeholder="ORCL">
+            </div>
+            <div class="form-group">
+                <label class="form-label">用户名</label>
+                <input type="text" class="form-input" id="username" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">密码</label>
+                <input type="password" class="form-input" id="password" required>
+            </div>
+            <div class="form-group" id="schemaGroup" style="display: none;">
+                <label class="form-label">Schema名称</label>
+                <input type="text" class="form-input" id="schemaName" placeholder="dbo">
+            </div>
+            <div style="text-align: center;">
+                <button type="submit" class="btn btn-primary">
+                    <span class="btn-text">保存连接</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-    (() => {
-        const API_BASE = 'http://localhost:8080/v1/api/db'; // 固定 base
-        // DOM
-        const insertCard = document.getElementById('insert-card');
-        const listCard = document.getElementById('list-card');
-        const executeCard = document.getElementById('execute-card');
-        const showInsertBtn = document.getElementById('show-insert');
-        const showExecuteBtn = document.getElementById('show-execute');
-        const refreshListBtn = document.getElementById('btn-refresh');
-        const refreshSidebar = document.getElementById('refresh-list');
+    // 全局变量
+    let currentToken = localStorage.getItem('dbToken');
+    let selectedConnectionId = null;
+    let selectedConnectionType = null;
+    let connections = [];
 
-        const form = document.getElementById('insert-form');
-        const typeSel = document.getElementById('conn-type');
-        const usernameEl = document.getElementById('username');
-        const passwordEl = document.getElementById('password');
-        const hostEl = document.getElementById('host');
-        const portEl = document.getElementById('port');
-        const thirdLabel = document.getElementById('third-label');
-        const thirdField = document.getElementById('third-field');
-        const insertResult = document.getElementById('insert-result');
-        const resetBtn = document.getElementById('insert-reset');
+    // API 基础URL
+    const API_BASE = 'http://localhost:8080/v1/api/db';
 
-        const tbody = document.querySelector('#conn-table tbody');
-
-        // execute area dom
-        const btn = document.getElementById('btn');
-        const clearBtn = document.getElementById('clear');
-        const msgEl = document.getElementById('message');
-        const sqlEl = document.getElementById('sql');
-        const imgEl = document.getElementById('img');
-        const logEl = document.getElementById('log');
-        const ctypeEl = document.getElementById('ctype');
-        const baseUrlInput = document.getElementById('baseUrl');
-
-        const schemaRow = document.getElementById('schema-row');
-        const schemaInput = document.getElementById('schemaName');
-
-
-        // 显示/隐藏卡片
-        showInsertBtn.onclick = () => { insertCard.style.display='block'; executeCard.style.display='none'; scrollToTop(); }
-        showExecuteBtn.onclick = () => { executeCard.style.display='block'; insertCard.style.display='none'; scrollToTop(); }
-        refreshListBtn.onclick = fetchAndRender;
-        refreshSidebar.onclick = fetchAndRender;
-
-        function scrollToTop(){ window.scrollTo({top:0,behavior:'smooth'}); }
-
-        // 根据类型调整第三个字段标签/默认端口
-        function applyTypeDefaults() {
-            const t = typeSel.value;
-            if (t === 'MYSQL') {
-                thirdLabel.textContent = 'Database';
-                if (!portEl.value) portEl.value = 3306;
-                thirdField.placeholder = 'database';
-                schemaRow.style.display = 'none';
-                schemaInput.value = '';
-            } else if (t === 'ORACLE') {
-                thirdLabel.textContent = 'ServiceName';
-                if (!portEl.value) portEl.value = 1521;
-                thirdField.placeholder = 'serviceName (默认：orcl)';
-                schemaRow.style.display = 'none';
-                schemaInput.value = '';
-            } else { // SQLSERVER
-                thirdLabel.textContent = 'Database / Schema';
-                if (!portEl.value) portEl.value = 1433;
-                thirdField.placeholder = 'database (schema 默认 dbo)';
-                schemaRow.style.display = 'block';
-                if (!schemaInput.value) schemaInput.value = 'dbo';
-            }
+    // 页面加载时检查连接状态
+    window.onload = function() {
+        if (currentToken) {
+            updateConnectionStatus(true, '已连接到数据库');
         }
-        typeSel.addEventListener('change', applyTypeDefaults);
-        // 初始化
-        applyTypeDefaults();
+        // 监听回车键发送消息
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        // 监听数据库类型变化
+        document.getElementById('dbType').addEventListener('change', function() {
+            const schemaGroup = document.getElementById('schemaGroup');
+            const databaseGroup = document.getElementById('databaseGroup');
+            const serviceNameGroup = document.getElementById('serviceNameGroup');
+            const portField = document.getElementById('port');
+
+            // 重置所有字段显示状态
+            schemaGroup.style.display = 'none';
+            databaseGroup.style.display = 'block';
+            serviceNameGroup.style.display = 'none';
+
+            // 根据数据库类型显示相应字段和设置默认端口
+            if (this.value === 'SQLSERVER') {
+                schemaGroup.style.display = 'block';
+                portField.placeholder = '1433';
+            } else if (this.value === 'ORACLE') {
+                databaseGroup.style.display = 'none';
+                serviceNameGroup.style.display = 'block';
+                portField.placeholder = '1521';
+            } else if (this.value === 'MYSQL') {
+                portField.placeholder = '3306';
+            }
+        });
+    };
+
+    // 显示通知
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        setTimeout(() => notification.classList.add('show'), 100);
+
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+    }
+
+    // 更新连接状态
+    function updateConnectionStatus(connected, message) {
+        const statusElement = document.getElementById('connectionStatus');
+        const statusText = document.getElementById('statusText');
+        const chatArea = document.getElementById('chatArea');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+
+        statusText.textContent = message;
+
+        if (connected) {
+            statusElement.className = 'connection-status connected';
+            statusElement.style.display = 'block';
+            chatArea.classList.add('active');
+            disconnectBtn.style.display = 'inline-block';
+        } else {
+            statusElement.className = 'connection-status error';
+            if (message !== '未连接') {
+                statusElement.style.display = 'block';
+            } else {
+                statusElement.style.display = 'none';
+            }
+            chatArea.classList.remove('active');
+            disconnectBtn.style.display = 'none';
+        }
+    }
+
+    // 打开数据源选择模态框
+    async function openDataSourceModal() {
+        const modal = document.getElementById('dataSourceModal');
+        modal.classList.add('active');
+        await loadConnections();
+    }
+
+    // 打开添加连接模态框
+    function openAddConnectionModal() {
+        const modal = document.getElementById('addConnectionModal');
+        modal.classList.add('active');
+    }
+
+    // 关闭模态框
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        modal.classList.remove('active');
 
         // 重置表单
-        resetBtn.addEventListener('click', () => {
-            form.reset();
-            typeSel.value = 'MYSQL';
-            usernameEl.value = ''; passwordEl.value=''; hostEl.value=''; portEl.value='';
-            thirdField.value = '';
-            schemaInput.value = '';
-            applyTypeDefaults();
-            insertResult.textContent = '';
-        });
-
-        // 组装请求体并 POST 到 /insert
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            insertResult.textContent = '';
-            const t = typeSel.value;
-            const username = usernameEl.value.trim();
-            const password = passwordEl.value;
-            const host = hostEl.value.trim() || '127.0.0.1';
-            const port = parseInt(portEl.value) || (t==='MYSQL'?3306:(t==='ORACLE'?1521:1433));
-            const third = thirdField.value.trim();
-
-            // 组装对象：要符合后端的类字段名
-            let bodyObj = { type: t, username, password, host, port };
-
-            if (t === 'MYSQL') {
-                bodyObj.database = third || '';
-            } else if (t === 'ORACLE') {
-                bodyObj.serviceName = third || 'orcl';
-            } else if (t === 'SQLSERVER') {
-                bodyObj.database = third || '';
-                // 显式传 schemaName（若用户未填写，使用 'dbo'）
-                const s = (schemaInput.value || '').trim();
-                bodyObj.schemaName = s ? s : 'dbo';
-                // 如果用户在 third 填写了 schema，我们不会覆盖 schemaName（SQLServer 的 third 既可做 database）
-                // 若用户填了 database，保留，若填的是 schema 则需要手动修改，这里保持简单：如果 third 不为空，视为 database。
-                // if (third) {
-                //     bodyObj.database = third;
-                //     delete bodyObj.schemaName; // 让后端默认处理 schemaName（它在类中已有默认）
-                // }
-            }
-
-            // 移除 undefined 字段
-            Object.keys(bodyObj).forEach(k => bodyObj[k]===undefined && delete bodyObj[k]);
-
-            try {
-                const res = await fetch(API_BASE + '/insert', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(bodyObj)
-                });
-                if (!res.ok) {
-                    const txt = await res.text();
-                    insertResult.textContent = `错误: ${res.status} ${txt}`;
-                    insertResult.style.color = '#ff8080';
-                    return;
-                }
-                const data = await res.text(); // 你后端 InsertConn 返回 int（看起来是 id 或 影响行数）
-                insertResult.textContent = '插入成功，返回：' + data;
-                insertResult.style.color = '#9ef08a';
-                // 刷新列表
-                setTimeout(fetchAndRender, 500);
-                form.reset();
-                applyTypeDefaults();
-            } catch (err) {
-                insertResult.textContent = '请求失败: ' + err;
-                insertResult.style.color = '#ff8080';
-            }
-        });
-
-        // 获取并渲染连接列表
-        async function fetchAndRender() {
-            tbody.innerHTML = '<tr><td colspan="7" class="muted">加载中...</td></tr>';
-            try {
-                const res = await fetch(API_BASE + '/list');
-                if (!res.ok) {
-                    const t = await res.text();
-                    tbody.innerHTML = `<tr><td colspan="7" class="muted">错误 ${res.status}: ${t}</td></tr>`;
-                    return;
-                }
-                const list = await res.json();
-                if (!Array.isArray(list) || list.length===0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="muted">无连接记录</td></tr>`;
-                    return;
-                }
-                tbody.innerHTML = '';
-                list.forEach(item => {
-                    const tr = document.createElement('tr');
-                    const id = item.id === undefined ? '' : item.id;
-                    const type = item.type || '';
-                    const username = item.username || '';
-                    const host = item.host || '';
-                    const port = item.port || '';
-                    const database = item.database || item.serviceName || '';
-                    const schema = item.schemaName || '';
-                    tr.innerHTML = `
-                        <td>${id}</td>
-                        <td>${type}</td>
-                        <td>${username}</td>
-                        <td>${host}</td>
-                        <td>${port}</td>
-                        <td>${database}</td>
-                        <td>${schema}</td>
-                        <td class="actions">
-                            <button onclick="connectById('${type}', ${id})">连接</button>
-                            <button onclick="copyConn(${id})">复制</button>
-                            <button onclick="deleteConn('${type}', ${id})">删除</button>
-                        </td>`;
-                    tbody.appendChild(tr);
-                });
-
-            } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="7" class="muted">请求异常: ${err}</td></tr>`;
-            }
+        if (modalId === 'addConnectionModal') {
+            document.getElementById('addConnectionForm').reset();
+            document.getElementById('schemaGroup').style.display = 'none';
+            document.getElementById('databaseGroup').style.display = 'block';
+            document.getElementById('serviceNameGroup').style.display = 'none';
         }
-        // 初次加载
-        fetchAndRender();
+    }
 
-        // 全局函数供 table button 使用（因为按钮 onclick 使用全局函数）
-        window.connectById = async function(type, id) {
-            if (!id) { alert('该条记录没有 id，无法连接'); return; }
-            try {
-                const res = await fetch(`${API_BASE}/connect?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
-                const text = await res.text();
-                alert(text);
-            } catch (e) {
-                alert('请求出错：' + e);
+    // 加载连接列表
+    async function loadConnections() {
+        try {
+            const response = await fetch(`${API_BASE}/list`);
+            // 假设后端返回 JSON 数组
+            connections = await response.json();
+
+            const connectionList = document.getElementById('connectionList');
+            connectionList.innerHTML = '';
+
+            if (!Array.isArray(connections) || connections.length === 0) {
+                connectionList.innerHTML = '<p style="text-align: center; color: #718096;">暂无数据库连接，请先添加连接</p>';
+                document.getElementById('connectBtn').disabled = true;
+                selectedConnectionId = null;
+                selectedConnectionType = null;
+                return;
             }
-        };
 
-        window.deleteConn = async function(type, id) {
-            if (!id) { alert('该条记录没有 id，无法删除'); return; }
-            if (!confirm('确认删除 id=' + id + ' ?')) return;
-            try {
-                const res = await fetch(`${API_BASE}/delete?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, { method:'DELETE' });
-                if (!res.ok) {
-                    const t = await res.text();
-                    alert('删除失败: ' + res.status + ' ' + t);
+            connections.forEach((conn, index) => {
+                const connItem = document.createElement('div');
+                connItem.className = 'connection-item';
+                // 点击整个 item 选中
+                connItem.onclick = () => selectConnection(index);
+
+                let displayName = '';
+                let details = '';
+
+                if (conn.type === 'MYSQL') {
+                    displayName = `MySQL - ${conn.host || 'localhost'}`;
+                    details = `${conn.type} - ${conn.host}:${conn.port}/${conn.database || ''}`;
+                } else if (conn.type === 'ORACLE') {
+                    displayName = `Oracle - ${conn.host || 'localhost'}`;
+                    details = `${conn.type} - ${conn.host}:${conn.port}/${conn.serviceName || ''}`;
+                } else if (conn.type === 'SQLSERVER') {
+                    displayName = `SQL Server - ${conn.host || 'localhost'}`;
+                    details = `${conn.type} - ${conn.host}:${conn.port}/${conn.database || ''}`;
+                }
+
+                const leftDiv = document.createElement('div');
+                leftDiv.className = 'connection-left';
+                leftDiv.innerHTML = `
+                    <div class="connection-name">${displayName}</div>
+                    <div class="connection-details">${details} (用户: ${conn.username || '-'})</div>
+                `;
+
+                // 删除按钮（阻止冒泡到父元素）
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.textContent = '删除';
+                delBtn.onclick = async function(e) {
+                    e.stopPropagation();
+                    await deleteConnection(conn.type, conn.id);
+                };
+
+                connItem.appendChild(leftDiv);
+                connItem.appendChild(delBtn);
+
+                connectionList.appendChild(connItem);
+            });
+
+            // 如果之前选中的id仍存在则重新选中（否则重置）
+            if (selectedConnectionId) {
+                const idx = connections.findIndex(c => c.id === selectedConnectionId);
+                if (idx !== -1) {
+                    // 重新标记选中样式
+                    document.querySelectorAll('.connection-item')[idx].classList.add('selected');
+                    document.getElementById('connectBtn').disabled = false;
                 } else {
-                    const data = await res.text();
-                    alert('删除返回：' + data);
-                    fetchAndRender();
+                    selectedConnectionId = null;
+                    selectedConnectionType = null;
+                    document.getElementById('connectBtn').disabled = true;
                 }
-            } catch (err) {
-                alert('请求失败: ' + err);
+            } else {
+                document.getElementById('connectBtn').disabled = true;
             }
-        };
-
-        window.copyConn = function(id) {
-            // 简单从表里找到该行并将 JSON 复制到剪贴板（便于复用）
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            const target = rows.find(r => r.firstElementChild && r.firstElementChild.textContent == String(id));
-            if (!target) { alert('找不到对应行'); return; }
-            const tds = target.querySelectorAll('td');
-            const obj = {
-                id: tds[0].textContent,
-                type: tds[1].textContent,
-                username: tds[2].textContent,
-                host: tds[3].textContent,
-                port: tds[4].textContent,
-                databaseOrService: tds[5].textContent,
-                schemaName: tds[6].textContent
-            };
-            navigator.clipboard?.writeText(JSON.stringify(obj, null, 2)).then(()=> alert('已复制到剪贴板'), ()=> alert('复制失败'));
-        };
-
-        // ---------------- Execute 面板逻辑（基于你之前的实现）
-        function log(...args){
-            const t = new Date().toLocaleTimeString();
-            logEl.value += `[${t}] ` + args.join(' ') + '\n';
-            logEl.scrollTop = logEl.scrollHeight;
+        } catch (error) {
+            console.error('加载连接列表失败:', error);
+            showNotification('加载连接列表失败', 'error');
         }
-        clearBtn.onclick = () => {
-            sqlEl.textContent = '(尚无内容)';
-            imgEl.src = '';
-            logEl.value = '';
+    }
+
+    // 选择连接
+    function selectConnection(index) {
+        // 移除之前的选择
+        document.querySelectorAll('.connection-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+
+        // 选择当前项
+        const items = document.querySelectorAll('.connection-item');
+        if (!items[index]) return;
+        items[index].classList.add('selected');
+
+        selectedConnectionId = connections[index].id;
+        selectedConnectionType = connections[index].type;
+
+        document.getElementById('connectBtn').disabled = false;
+    }
+
+    // 连接到数据库
+    async function connectToDatabase() {
+        if (!selectedConnectionId || !selectedConnectionType) {
+            showNotification('请选择一个数据库连接', 'error');
+            return;
+        }
+
+        const connectBtn = document.getElementById('connectBtn');
+        const originalText = connectBtn.innerHTML;
+        connectBtn.innerHTML = '<span class="loading"></span>连接中...';
+        connectBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${API_BASE}/connect?type=${encodeURIComponent(selectedConnectionType)}&id=${encodeURIComponent(selectedConnectionId)}`);
+            const result = await response.json();
+
+            if (response.ok && result.token) {
+                currentToken = result.token;
+                localStorage.setItem('dbToken', currentToken);
+                updateConnectionStatus(true, result.message || '已连接到数据库');
+                closeModal('dataSourceModal');
+                showNotification('数据库连接成功！');
+            } else {
+                throw new Error(result.error || '连接失败');
+            }
+        } catch (error) {
+            console.error('连接数据库失败:', error);
+            updateConnectionStatus(false, error.message);
+            showNotification('连接数据库失败: ' + error.message, 'error');
+        } finally {
+            connectBtn.innerHTML = originalText;
+            connectBtn.disabled = false;
+        }
+    }
+
+    // 断开数据库连接
+    async function disconnectDatabase() {
+        if (!currentToken) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/disconnect?token=${currentToken}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                currentToken = null;
+                localStorage.removeItem('dbToken');
+                updateConnectionStatus(false, '未连接');
+                showNotification('已断开数据库连接');
+
+                // 清空聊天记录
+                document.getElementById('chatMessages').innerHTML = '';
+            } else {
+                throw new Error('断开连接失败');
+            }
+        } catch (error) {
+            console.error('断开连接失败:', error);
+            showNotification('断开连接失败: ' + error.message, 'error');
+        }
+    }
+
+    // 删除连接（实现后端 DELETE 接口调用）
+    async function deleteConnection(type, id) {
+        if (!confirm('确认要删除该连接吗？此操作不可恢复。')) return;
+
+        try {
+            const resp = await fetch(`${API_BASE}/delete?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
+
+            if (resp.ok) {
+                // 后端返回整型删除数量或者 JSON，这里尝试解析
+                let resText = await resp.text();
+                // 如果返回的是数字或 JSON string，简单显示成功
+                showNotification('删除成功');
+                // 如果当前选中的是被删除项，清除选择和禁用连接按钮
+                if (selectedConnectionId === id) {
+                    selectedConnectionId = null;
+                    selectedConnectionType = null;
+                    document.getElementById('connectBtn').disabled = true;
+                }
+                // 重新加载列表
+                await loadConnections();
+            } else {
+                const errText = await resp.text();
+                throw new Error(errText || '删除失败');
+            }
+        } catch (error) {
+            console.error('删除连接失败:', error);
+            showNotification('删除连接失败: ' + error.message, 'error');
+        }
+    }
+
+    // 添加数据库连接
+    document.getElementById('addConnectionForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="loading"></span>保存中...';
+        submitBtn.disabled = true;
+
+        const dbType = document.getElementById('dbType').value;
+
+        // 根据数据库类型构建不同的连接数据
+        let connectionData = {
+            type: dbType,
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            host: document.getElementById('host').value,
+            port: parseInt(document.getElementById('port').value)
         };
 
-        btn.onclick = async () => {
-            sqlEl.textContent = '(等待响应...)';
-            imgEl.src = '';
-            logEl.value = '';
+        // 根据不同数据库类型添加特定字段
+        if (dbType === 'MYSQL') {
+            connectionData.database = document.getElementById('database').value;
+        } else if (dbType === 'ORACLE') {
+            connectionData.serviceName = document.getElementById('serviceName').value;
+        } else if (dbType === 'SQLSERVER') {
+            connectionData.database = document.getElementById('database').value;
+            connectionData.schemaName = document.getElementById('schemaName').value || 'dbo';
+        }
 
-            const body = msgEl.value;
-            const contentType = ctypeEl.value;
-            const base = baseUrlInput.value || 'http://localhost:8080';
-            const endpoint = base.replace(/\/$/, '') + '/v1/api/db/execute';
+        try {
+            const response = await fetch(`${API_BASE}/insert`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(connectionData)
+            });
 
-            log('开始请求', endpoint);
-            try{
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': contentType, 'Accept': 'application/x-ndjson' },
-                    body: body
-                });
+            if (response.ok) {
+                closeModal('addConnectionModal');
+                showNotification('数据库连接添加成功！');
+                // 立即刷新连接列表（如果模态框打开时需要最新列表）
+                await loadConnections();
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText || '添加连接失败');
+            }
+        } catch (error) {
+            console.error('添加连接失败:', error);
+            showNotification('添加连接失败: ' + error.message, 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    });
 
-                if (!res.ok) {
-                    const text = await res.text();
-                    log('HTTP 错误：', res.status, text);
-                    sqlEl.textContent = '请求返回错误：' + res.status;
-                    return;
-                }
+    // 发送消息
+    async function sendMessage() {
+        const chatInput = document.getElementById('chatInput');
+        const message = chatInput.value.trim();
 
-                if (!res.body) {
-                    log('响应没有 body（非流式）。尝试按文本解析');
-                    const text = await res.text();
-                    log('响应文本：', text);
-                    sqlEl.textContent = text;
-                    return;
-                }
+        if (!message) return;
+        if (!currentToken) {
+            showNotification('请先连接数据库', 'error');
+            return;
+        }
 
-                const reader = res.body.getReader();
+        // 添加用户消息到聊天区域
+        addMessage(message, 'user');
+        chatInput.value = '';
+
+        try {
+            const response = await fetch(`${API_BASE}/execute`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    token: currentToken
+                })
+            });
+
+            if (response.ok) {
+                // 处理流式响应
+                const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let buf = '';
+                let buffer = '';
 
                 while (true) {
-                    const { done, value } = await reader.read();
+                    const { value, done } = await reader.read();
                     if (done) break;
-                    buf += decoder.decode(value, { stream: true });
 
-                    let idx;
-                    while ((idx = buf.indexOf('\n')) >= 0) {
-                        const line = buf.slice(0, idx).trim();
-                        buf = buf.slice(idx + 1);
-                        if (!line) continue;
-                        try{
-                            const msg = JSON.parse(line);
-                            log('收到消息：', JSON.stringify(msg));
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 保留未完成的行
 
-                            if (msg.type === 'markdown') {
-                                sqlEl.textContent = msg.content;
-                            } else if (msg.type === 'image') {
-                                const content = msg.content || '';
-                                if (!content) {
-                                    log('图片 content 为空');
-                                    imgEl.src = '';
-                                } else if (content.startsWith('data:')) {
-                                    imgEl.src = content;
-                                } else if (content.startsWith('http') || content.startsWith('https')) {
-                                    imgEl.src = content;
-                                } else if (content.startsWith('/')) {
-                                    imgEl.src = base.replace(/\/$/, '') + content;
-                                } else {
-                                    imgEl.src = base.replace(/\/$/, '') + '/v1/api/db/execute/image/' + content;
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                if (data.type === 'markdown') {
+                                    addMessage(data.content, 'assistant', 'markdown');
+                                } else if (data.type === 'image') {
+                                    addMessage(data.content, 'assistant', 'image');
                                 }
-                            } else {
-                                log('未知消息类型：', msg.type);
+                            } catch (e) {
+                                console.error('解析响应失败:', e);
                             }
-
-                        } catch (err) {
-                            log('解析行失败：', err, 'line:', line);
                         }
                     }
                 }
-
-                if (buf.trim()) {
-                    try{
-                        const msg = JSON.parse(buf.trim());
-                        log('收到尾部消息：', JSON.stringify(msg));
-                        if (msg.type === 'markdown') sqlEl.textContent = msg.content;
-                        if (msg.type === 'image') {
-                            const content = msg.content || '';
-                            if (content.startsWith('data:')) imgEl.src = content;
-                            else imgEl.src = base.replace(/\/$/, '') + content;
-                        }
-                    }catch(e){ log('尾部解析失败', e); }
-                }
-
-                log('流读取结束');
-            } catch (err) {
-                log('请求或流读取发生异常：', err);
-                sqlEl.textContent = '请求失败：' + err;
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '查询失败');
             }
-        };
+        } catch (error) {
+            console.error('发送消息失败:', error);
+            addMessage('查询失败: ' + error.message, 'assistant');
 
-    })();
+            if (error.message.includes('连接不存在') || error.message.includes('token')) {
+                currentToken = null;
+                localStorage.removeItem('dbToken');
+                updateConnectionStatus(false, '连接已过期，请重新连接');
+            }
+        }
+    }
+
+    // 添加消息到聊天区域
+    function addMessage(content, type, contentType = 'text') {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+
+        let messageContent = '';
+        if (type === 'user') {
+            messageContent = `<strong>用户:</strong> ${content}`;
+        } else {
+            if (contentType === 'markdown') {
+                // 简单的markdown渲染（主要处理代码块）
+                messageContent = `<strong>系统:</strong> <pre><code>${content.replace(/```sql\n?/g, '').replace(/```\n?/g, '')}</code></pre>`;
+            } else if (contentType === 'image') {
+                messageContent = `<strong>系统:</strong> <br><img src="${content}" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 10px;">`;
+            } else {
+                messageContent = `<strong>系统:</strong> ${content}`;
+            }
+        }
+
+        messageDiv.innerHTML = messageContent;
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 点击模态框外部关闭
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
+    });
 </script>
 </body>
 </html>
